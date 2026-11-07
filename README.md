@@ -42,6 +42,11 @@ Lalu buka `http://localhost:8080`:
    sumber), transisi (xfade), buang keheningan, normalisasi LUFS, judul.
 4. **Render** – klik *Render jadi satu video*; progres tampil, hasil bisa
    diputar dan diunduh (`/api/projects/{id}/output`).
+5. **Transkrip (opsional)** – tombol *Transkrip* menjalankan **faster-whisper**
+   lokal di CPU (model `base`/`small`/…; bahasa Indonesia, English, atau
+   otomatis). Hasil: SRT, TXT, dan JSON tingkat kata yang langsung bisa dipakai
+   skill `cut-silences` / `cut-mistakes` dari herk-edit-kit. Model diunduh sekali
+   dari huggingface.co ke `data/models` (lihat *Whisper* di bawah).
 
 Uji cepat tanpa browser:
 
@@ -74,10 +79,34 @@ Ringkasan lengkap, lisensi, dan cara memakainya ada di
 | [mifi/editly](https://github.com/mifi/editly) | NLE deklaratif Node (butuh headless-gl); dicatat sebagai alternatif render. |
 | [Breakthrough/PySceneDetect](https://github.com/Breakthrough/PySceneDetect) | Dipakai langsung oleh server untuk deteksi adegan. |
 
+## Whisper (transkripsi lokal)
+
+`pip install faster-whisper` sudah ada di `requirements.txt`. Saat pertama dipakai,
+server mengunduh model dari huggingface.co (base ≈ 140 MB, small ≈ 460 MB) ke
+`data/models` (`ACEVIDS_MODELS` untuk memindahkannya). Di jaringan yang
+dibatasi, izinkan `huggingface.co` dan host CDN-nya (`us.aws.cdn.hf.co`,
+`cdn-lfs.hf.co`). Model default `ACEVIDS_WHISPER_MODEL=base`; untuk bahasa
+Indonesia hasil `small` jauh lebih rapi dan masih cepat di CPU
+(≈ 3 detik per 11 detik audio pada 4 core). Audio di-decode lewat ffmpeg,
+jadi tidak bergantung versi PyAV.
+
+Dari terminal:
+
+```bash
+curl -X POST http://localhost:8080/api/media/MEDIA_ID/transcribe \
+  -H 'Content-Type: application/json' -d '{"model":"small","language":"id"}'
+curl -o transkrip.srt "http://localhost:8080/api/media/MEDIA_ID/transcript?format=srt"
+```
+
+Alternatif tanpa server: `auto-editor whisper FILE` (skill `auto-editor-transcribe`)
+atau `python3 .claude/skills/ffmpeg-skill/scripts/caption.py FILE --transcribe`
+(keduanya juga memakai faster-whisper).
+
 ## Lingkungan cloud (Claude Code)
 
 Environment **ACEVIDS** sudah dibuat dengan setup script yang memasang semua
-dependensi di atas; lihat `scripts/setup.sh`. Session Claude di repo ini otomatis
+dependensi di atas (`requirements.txt` termasuk faster-whisper) dan mengizinkan
+huggingface.co + CDN-nya untuk unduhan model; lihat `scripts/setup.sh`. Session Claude di repo ini otomatis
 mendapat skill di `.claude/skills/`.
 
 ## Lisensi

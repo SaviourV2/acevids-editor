@@ -19,6 +19,7 @@ from .analysis import analyze_media, media_dir
 from .jobs import JobManager
 from .render import PRESETS, TRANSITIONS, build_plan, keep_segments, render_project
 from .store import Store, new_id, now
+from .transcribe import ALLOWED_MODELS, DEFAULT_MODEL, transcribe_media, whisper_available
 
 config.ensure_dirs()
 store = Store(config.DB_FILE)
@@ -65,6 +66,11 @@ class AutocutRequest(BaseModel):
     end: Optional[float] = None
 
 
+class TranscribeRequest(BaseModel):
+    model: str = DEFAULT_MODEL
+    language: Optional[str] = None  # None/"auto" = deteksi otomatis, "id", "en", ...
+
+
 class ClipModel(BaseModel):
     media_id: str
     in_: Optional[float] = Field(default=None, alias="in")
@@ -101,6 +107,7 @@ def health() -> Dict[str, Any]:
     return {
         "ok": True, "ffmpeg": ff.ffmpeg_version(), "scenedetect": sd,
         "auto_editor": shutil.which("auto-editor") is not None,
+        "whisper": whisper_available(), "whisper_models": sorted(ALLOWED_MODELS), "whisper_default": DEFAULT_MODEL,
         "data_dir": str(config.DATA_DIR), "chunk_size": config.CHUNK_SIZE,
         "presets": list(PRESETS), "transitions": sorted(TRANSITIONS),
         "disk_free_gb": round(shutil.disk_usage(config.DATA_DIR).free / 1e9, 2),
@@ -241,6 +248,12 @@ def _media_view(media: Dict[str, Any]) -> Dict[str, Any]:
     job = jobs.active_for("analyze", media["id"])
     media["job"] = {"id": job["id"], "progress": job["progress"], "message": job["message"],
                     "status": job["status"]} if job else None
+    tjob = jobs.active_for("transcribe", media["id"])
+    media["transcribe_job"] = {"id": tjob["id"], "progress": tjob["progress"], "message": tjob["message"],
+                               "status": tjob["status"]} if tjob else None
+    if tjob is None and (media.get("transcript") or {}).get("status") == "running":
+        failed = [j for j in store.list("jobs", kind="transcribe", target_id=media["id"]) if j["status"] in ("failed", "cancelled")]
+        media["transcript"] = {"status": "failed", "error": failed[0].get("error") if failed else "job hilang"}
     if media["job"] is None:
         failed = [j for j in store.list("jobs", kind="analyze", target_id=media["id"]) if j["status"] == "failed"]
         if failed and media.get("status") not in ("ready",):
@@ -306,6 +319,45 @@ def media_thumb(media_id: str, name: str) -> FileResponse:
     if not p.exists():
         raise HTTPException(404, "thumbnail tidak ada")
     return FileResponse(p, media_type="image/jpeg")
+
+
+@app.post("/api/media/{media_id}/transcribe")
+def media_transcribe(media_id: str, body: TranscribeRequest = TranscribeRequest()) -> Dict[str, Any]:
+    """Transkripsi lokal (faster-whisper) -> transcript.json (tingkat kata), .srt, .txt."""
+    media = _media_or_404(media_id)
+    if not whisper_available():
+        raise HTTPException(501, "faster-whisper belum terpasang: pip install faster-whisper")
+    if media.get("status") != "ready":
+        raise HTTPException(409, "media belum selesai dicek")
+    if not (media.get("probe") or {}).get("has_audio"):
+        raise HTTPException(400, "media tidak punya audio")
+    active = jobs.active_for("transcribe", media_id)
+    if active:
+        return active
+    lang = (body.language or "").strip().lower() or None
+    if lang == "auto":
+        lang = None
+    try:
+        fn = transcribe_media(store, media_id, body.model, lang)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    job = jobs.submit("transcribe", media_id, fn, label=f"Transkrip {media['filename']} ({body.model})")
+    store.update("media", media_id, transcript={"status": "running", "model": body.model, "job_id": job["id"]})
+    return job
+
+
+@app.get("/api/media/{media_id}/transcript")
+def media_transcript(media_id: str, format: str = "json") -> FileResponse:
+    media = _media_or_404(media_id)
+    t = media.get("transcript") or {}
+    if t.get("status") != "done":
+        raise HTTPException(404, "transkrip belum ada")
+    key = {"json": "json_path", "srt": "srt_path", "txt": "txt_path"}.get(format)
+    if key is None:
+        raise HTTPException(400, "format harus json, srt, atau txt")
+    stem = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(media["filename"]).stem) or "transcript"
+    mt = {"json": "application/json", "srt": "application/x-subrip", "txt": "text/plain"}[format]
+    return FileResponse(t[key], media_type=mt, filename=f"{stem}.{format}")
 
 
 @app.post("/api/media/{media_id}/autocut")

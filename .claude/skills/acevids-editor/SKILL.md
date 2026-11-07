@@ -31,6 +31,15 @@ Semua operasi tersedia sebagai JSON API; UI di `/` hanya pembungkusnya.
    Hasil: `last_render.output_path`, `duration`, `video`, `loudness`;
    unduh di `GET /api/projects/{id}/output`.
 
+## Transkrip
+
+`POST /api/media/{id}/transcribe {"model":"small","language":"id"}` (bahasa `auto`
+untuk deteksi) → poll `GET /api/media/{id}` sampai `transcript.status == "done"`.
+Unduh `GET /api/media/{id}/transcript?format=json|srt|txt`. JSON-nya tingkat kata
+dan langsung diterima skill `cut-silences`/`cut-mistakes`. Model pertama kali
+diunduh dari huggingface.co; bila jaringan dibatasi, host `huggingface.co` dan
+`us.aws.cdn.hf.co` harus diizinkan.
+
 ## Laporan ke user
 
 Laporkan angka dari `last_render` (durasi, resolusi, fps, LUFS, keheningan yang

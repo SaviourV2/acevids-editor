@@ -19,4 +19,5 @@ npx skills add 0xsline/OpenChatCut --skill openchatcut   # editor GUI agen-nativ
 Catatan untuk skill herk-edit-kit: script pembantu yang mereka rujuk sebagai
 `scripts/transcribe-elevenlabs.mjs`, `scripts/build-edl-review.mjs`,
 `scripts/validate-beat-sync.mjs` ada di `third_party/herk-edit-kit/`.
-Skill ini butuh transkrip tingkat kata (ElevenLabs Scribe atau Whisper).
+Skill ini butuh transkrip tingkat kata: pakai `POST /api/media/{id}/transcribe`
+ACEVIDS (faster-whisper) lalu `GET …/transcript?format=json`, atau ElevenLabs Scribe.

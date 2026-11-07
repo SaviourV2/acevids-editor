@@ -67,7 +67,8 @@ h3 { font-size: 13px; margin: 14px 0 6px; color: var(--muted); text-transform: u
 .scene .noimg { aspect-ratio: 16/9; background: #000; }
 .scene .t { padding: 3px 5px; color: var(--muted); }
 .silences { max-height: 140px; overflow: auto; font-size: 12px; }
-.silences div { display: flex; justify-content: space-between; padding: 2px 4px; border-bottom: 1px solid var(--line); }
+.silences div { display: flex; justify-content: space-between; padding: 2px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.silences.transcript { max-height: 220px; }
 .inout { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
 .inout input { width: 90px; }
 /* timeline */

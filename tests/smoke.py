@@ -137,6 +137,32 @@ def main():
         out = urllib.request.urlopen(f"{base}/api/projects/{prj['id']}/output").read()
         assert len(out) == lr["size"]
 
+        # transkripsi (opsional: butuh faster-whisper + model terunduh / akses huggingface.co)
+        if os.environ.get("ACEVIDS_SMOKE_WHISPER") == "1":
+            speech = os.path.join(clips, "speech.mp4")
+            if shutil.which("espeak-ng"):
+                subprocess.run(["espeak-ng", "-v", "id", "-s", "140", "-w", os.path.join(clips, "speech.wav"),
+                                "Halo semua. Ini adalah uji coba transkripsi ACEVIDS."], check=True)
+                subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
+                                "testsrc2=size=320x240:rate=25", "-i", os.path.join(clips, "speech.wav"), "-shortest",
+                                "-c:v", "libx264", "-preset", "veryfast", "-c:a", "aac", speech], check=True)
+            else:
+                speech = os.path.join(clips, "a.mp4")  # tanpa espeak: cukup uji jalurnya
+            sid = upload(base, speech)["id"]
+            wait_for(lambda: req(f"{base}/api/media/{sid}")["status"] == "ready", 300, "analisis speech")
+            req(f"{base}/api/media/{sid}/transcribe", "POST", {"model": os.environ.get("ACEVIDS_WHISPER_MODEL", "base"), "language": "id"})
+
+            def transcribed():
+                m = req(f"{base}/api/media/{sid}")
+                tr = m.get("transcript") or {}
+                if tr.get("status") == "failed":
+                    raise SystemExit("transkripsi gagal: " + str(tr.get("error")))
+                return tr if tr.get("status") == "done" else None
+            tr = wait_for(transcribed, 900, "transkripsi")
+            srt = urllib.request.urlopen(f"{base}/api/media/{sid}/transcript?format=srt").read().decode()
+            print("transkrip:", tr["model"], tr["language"], tr["words"], "kata |", srt.splitlines()[2] if len(srt.splitlines()) > 2 else srt)
+            assert tr["words"] > 0 and "-->" in srt
+
         # render kedua tanpa transisi (jalur concat + copy video)
         req(f"{base}/api/projects/{prj['id']}", "PUT", {"settings": {"transition": "none", "title": "", "normalize": False}})
         job2 = req(f"{base}/api/projects/{prj['id']}/render", "POST")

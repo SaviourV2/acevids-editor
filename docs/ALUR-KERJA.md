@@ -26,6 +26,17 @@
 
 Peringatan otomatis: HDR, VFR, rotasi, error decode, tidak ada audio.
 
+## 2b. Transkrip (job `transcribe`, `app/transcribe.py`)
+
+`POST /api/media/{id}/transcribe {"model":"small","language":"id"}` menjalankan
+faster-whisper (CPU, int8, `word_timestamps=True`, `vad_filter=True`) pada proxy.
+Audio di-decode oleh ffmpeg ke float32 16 kHz lalu dioper sebagai array.
+Keluaran di folder media: `transcript.json` (bentuk herk-edit-kit:
+`{"words":[{"text","start","end","type":"word"}], "audio_duration_secs", "segments"}`),
+`transcript.srt`, `transcript.txt`; diunduh lewat
+`GET /api/media/{id}/transcript?format=json|srt|txt`. Model diunduh sekali ke
+`ACEVIDS_MODELS` (default `data/models`).
+
 ## 3. Susun (project)
 
 `projects[].clips[] = {media_id, in, out, speed, remove_silence?, label}` dan
@@ -57,6 +68,8 @@ ringkasan disimpan di `project.last_render`. Progres dibaca dari
 
 ## 5. Dari sini ke alat lain
 
+- **herk-edit-kit**: `node .claude/skills/cut-silences/scripts/cut-silences.mjs transcript.json --video source.mp4 --out-dir work`
+  memakai `transcript.json` dari ACEVIDS langsung (sudah diuji).
 - **ffmpeg-skill**: `python3 .claude/skills/ffmpeg-skill/scripts/check.py final.mp4 --platform youtube`
   untuk QC spesifikasi platform; `render.py --export-timeline edit.fcpxml`
   bila ingin membuka di Premiere/Resolve.
@@ -77,3 +90,5 @@ ringkasan disimpan di `project.last_render`. Progres dibaca dari
 | `ACEVIDS_WORKERS` | 2 | job paralel |
 | `ACEVIDS_QUICK_CHECK_SECONDS` | 60 | durasi cek decode cepat (0 = seluruh file) |
 | `ACEVIDS_MAX_SCENE_THUMBS` | 80 | batas thumbnail adegan |
+| `ACEVIDS_MODELS` | `./data/models` | cache model Whisper |
+| `ACEVIDS_WHISPER_MODEL` | `base` | model Whisper default |

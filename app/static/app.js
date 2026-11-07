@@ -23,11 +23,12 @@
   };
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 
-  const state = {media: [], current: null, projects: [], project: null, inPoint: 0, outPoint: null, chunkSize: 16 * 1024 * 1024};
+  const state = {media: [], current: null, projects: [], project: null, inPoint: 0, outPoint: null, chunkSize: 16 * 1024 * 1024, whisper: false, whisperModels: ["base", "small"], whisperDefault: "small"};
 
   // ------------------------------------------------------------------ health
   api("/api/health").then((h) => {
     state.chunkSize = h.chunk_size || state.chunkSize;
+    state.whisper = !!h.whisper; state.whisperModels = h.whisper_models || state.whisperModels; state.whisperDefault = h.whisper_default || state.whisperDefault;
     $("#health").textContent = `${h.ffmpeg.split(" ").slice(0, 3).join(" ")} · scenedetect ${h.scenedetect || "–"} · disk bebas ${h.disk_free_gb} GB`;
   }).catch((e) => $("#health").textContent = "server tidak terjangkau: " + e.message);
 
@@ -154,6 +155,7 @@
       <div><span>Keheningan</span> ${(an.silences || []).length} bagian, ${fmtTime(an.silence_total || 0)}</div>
       <div><span>Adegan</span> ${((an.scenes || {}).scenes || []).length} (${esc((an.scenes || {}).engine || "–")})</div>
     </div>`;
+    html += `<div id="transcript-block">${renderTranscriptBlock(m)}</div>`;
     if (p.has_video) html += `<img class="sheet" src="/api/media/${m.id}/thumbs/sheet.jpg" alt="contact sheet">`;
     const scenes = ((an.scenes || {}).scenes || []);
     if (scenes.length) {
@@ -168,6 +170,26 @@
     }
     box.innerHTML = html;
     bindDetail(m);
+  }
+
+  function renderTranscriptBlock(m) {
+    if (!(m.probe && m.probe.has_audio)) return "";
+    const t = m.transcript || {}, tj = m.transcribe_job;
+    const opts = state.whisperModels.map((x) => `<option value="${x}" ${x === (t.model || state.whisperDefault) ? "selected" : ""}>${x}</option>`).join("");
+    let html = `<h3>Transkrip (Whisper lokal)</h3><div class="row">
+      <select id="tr-model" title="model Whisper" ${!state.whisper ? "disabled" : ""}>${opts}</select>
+      <select id="tr-lang" title="bahasa"><option value="id">Indonesia</option><option value="en">English</option><option value="auto">Deteksi otomatis</option></select>
+      <button class="btn small" id="btn-transcribe" ${!state.whisper || tj ? "disabled" : ""}>🎙 ${t.status === "done" ? "Transkrip ulang" : "Transkrip"}</button>`;
+    if (!state.whisper) html += `<span class="muted">faster-whisper belum terpasang di server</span>`;
+    if (t.status === "done") html += `<a class="btn small" href="/api/media/${m.id}/transcript?format=srt">⬇ SRT</a><a class="btn small" href="/api/media/${m.id}/transcript?format=json">⬇ JSON kata</a><a class="btn small" href="/api/media/${m.id}/transcript?format=txt">⬇ TXT</a>`;
+    html += `</div>`;
+    if (tj) html += `<div class="bar"><div style="width:${(tj.progress * 100).toFixed(1)}%"></div></div><div class="muted">${esc(tj.message)}</div>`;
+    else if (t.status === "failed") html += `<div class="err">Transkripsi gagal: ${esc(t.error || "?")}</div>`;
+    else if (t.status === "done") {
+      html += `<div class="muted">${t.model} · bahasa ${esc(t.language)} · ${t.words} kata · ${t.segments} segmen (klik untuk lompat)</div><div class="silences transcript">` +
+        (t.preview || []).map((sg) => `<div data-t="${sg.start}"><span>${fmtTime(sg.start)}</span><span style="flex:1;text-align:left;margin-left:8px">${esc(sg.text)}</span></div>`).join("") + `</div>`;
+    }
+    return html;
   }
 
   function bindDetail(m) {
@@ -199,6 +221,26 @@
     }));
     document.querySelectorAll(".add-scene").forEach((el) => el.addEventListener("click", () => addClip(m, Number(el.dataset.s), Number(el.dataset.e))));
     document.querySelectorAll(".silences div[data-t]").forEach((el) => el.addEventListener("click", () => { player.currentTime = Number(el.dataset.t); player.play(); }));
+    bindTranscriptBlock(m);
+  }
+
+  function bindTranscriptBlock(m) {
+    const player = $("#player");
+    $("#btn-transcribe")?.addEventListener("click", async () => {
+      try {
+        await api(`/api/media/${m.id}/transcribe`, {method: "POST", body: JSON.stringify({model: $("#tr-model").value, language: $("#tr-lang").value})});
+        await refreshMedia(); updateTranscriptBlock();
+      } catch (e) { alert(e.message); }
+    });
+    document.querySelectorAll(".transcript div[data-t]").forEach((el) => el.addEventListener("click", () => { if (player) { player.currentTime = Number(el.dataset.t); player.play(); } }));
+  }
+
+  function updateTranscriptBlock() {
+    const m = state.media.find((x) => x.id === state.current);
+    const block = $("#transcript-block");
+    if (!m || !block) return;
+    block.innerHTML = renderTranscriptBlock(m);
+    bindTranscriptBlock(m);
   }
 
   // ------------------------------------------------------------------ projects / timeline
@@ -346,13 +388,14 @@
   // ------------------------------------------------------------------ polling
   async function tick() {
     try {
-      const busyMedia = state.media.some((m) => m.status === "queued" || m.status === "analyzing");
+      const busyMedia = state.media.some((m) => m.status === "queued" || m.status === "analyzing" || m.transcribe_job);
       const busyProject = state.project && state.project.job;
       if (busyMedia || busyProject || !state.media.length) {
         await refreshMedia();
         if (state.current) {
           const m = state.media.find((x) => x.id === state.current);
           if (m && (m.status !== "ready" || !$("#player"))) renderDetail();
+          else if (m && (m.transcribe_job || $("#btn-transcribe:disabled"))) updateTranscriptBlock();
         }
       }
       if (busyProject) {
