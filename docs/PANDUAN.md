@@ -70,6 +70,28 @@ curl -T video.mp4 "http://localhost:8080/api/uploads/direct?filename=video.mp4"
 Format yang diterima: mp4, mov, mkv, webm, avi, m4v, mts, m2ts, ts, mxf, wmv,
 flv, 3gp, mpg, ogv, serta audio mp3, wav, m4a, aac, flac, ogg, opus.
 
+### Upload dari HP
+
+Server berjalan di MacBook/PC; HP cukup membuka halamannya lewat Wi-Fi yang sama.
+
+1. Jalankan server (`bash scripts/run.sh`), lalu di browser komputer klik
+   tombol **📱 Buka di HP** di pojok kanan atas. Muncul alamat jaringan lokal
+   (mis. `http://192.168.1.10:8080`) beserta QR code.
+2. Pindai QR dengan kamera HP (atau ketik alamatnya di Safari/Chrome HP).
+3. Di HP, ketuk kotak upload → pilih video dari **Galeri/Foto** (boleh beberapa).
+   Upload berjalan per potongan 16 MB; kalau Wi-Fi putus, pilih ulang file yang
+   sama untuk melanjutkan. Jangan kunci layar terlalu lama saat upload besar,
+   karena browser HP bisa menghentikan unggahan di latar belakang.
+4. Pengecekan, penyusunan, dan render bisa dilanjutkan dari HP atau komputer;
+   datanya sama di server.
+
+Catatan iPhone: video HEVC (.mov) dari iPhone didukung langsung. Kalau Foto
+menawarkan "Kompatibilitas", pilih yang asli saja; server yang mengonversi.
+
+Dari luar rumah (jaringan berbeda): pasang [Tailscale](https://tailscale.com)
+di komputer dan HP, lalu buka `http://<nama-komputer>:8080` lewat alamat
+Tailscale. Jangan membuka port 8080 langsung ke internet; server tidak punya login.
+
 ## 3. Cek otomatis
 
 Begitu upload selesai, status media berubah "antre" → "mengecek" → "siap".

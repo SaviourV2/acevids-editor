@@ -34,6 +34,8 @@ Lalu buka `http://localhost:8080`:
    # atau satu permintaan:
    curl -T video.mp4 "http://HOST:8080/api/uploads/direct?filename=video.mp4"
    ```
+   Dari **HP**: klik tombol *📱 Buka di HP* di pojok kanan atas, pindai QR-nya,
+   lalu pilih video dari galeri HP (harus satu Wi-Fi dengan komputer server).
 2. **Cek** – begitu upload selesai server otomatis: `ffprobe` (codec, resolusi,
    fps, VFR/HDR/rotasi), cek decode (60 detik pertama; tombol *Cek penuh* untuk
    seluruh file), contact sheet, **proxy 480p** untuk preview di browser,

@@ -3,14 +3,16 @@
 Jalankan:  uvicorn app.main:app --host 0.0.0.0 --port 8080
 """
 
+import io
 import os
 import re
 import shutil
+import socket
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -97,8 +99,35 @@ def index() -> FileResponse:
     return FileResponse(STATIC / "index.html")
 
 
+def lan_addresses() -> List[str]:
+    """Alamat IP mesin ini di jaringan lokal (untuk dibuka dari HP/laptop lain)."""
+    found: List[str] = []
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("10.255.255.255", 1))  # tidak mengirim apa pun; hanya memilih interface keluar
+        found.append(s.getsockname()[0])
+        s.close()
+    except OSError:
+        pass
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            ip = info[4][0]
+            if ip not in found and not ip.startswith("127."):
+                found.append(ip)
+    except socket.gaierror:
+        pass
+    return found
+
+
+def _server_port(request: Request) -> int:
+    try:
+        return int(request.url.port or (443 if request.url.scheme == "https" else 80))
+    except (TypeError, ValueError):
+        return 8080
+
+
 @app.get("/api/health")
-def health() -> Dict[str, Any]:
+def health(request: Request) -> Dict[str, Any]:
     try:
         import scenedetect  # type: ignore
         sd = scenedetect.__version__
@@ -111,7 +140,25 @@ def health() -> Dict[str, Any]:
         "data_dir": str(config.DATA_DIR), "chunk_size": config.CHUNK_SIZE,
         "presets": list(PRESETS), "transitions": sorted(TRANSITIONS),
         "disk_free_gb": round(shutil.disk_usage(config.DATA_DIR).free / 1e9, 2),
+        "lan_urls": [f"http://{ip}:{_server_port(request)}" for ip in lan_addresses()],
     }
+
+
+@app.get("/api/qr.png")
+def qr_png(request: Request, url: Optional[str] = None) -> Response:
+    """QR code berisi alamat server di jaringan lokal, untuk dipindai dari HP."""
+    try:
+        import qrcode  # type: ignore
+    except ImportError:
+        raise HTTPException(404, "paket qrcode belum terpasang (pip install qrcode[pil])")
+    target = url or next((f"http://{ip}:{_server_port(request)}" for ip in lan_addresses()), None)
+    if not target or not target.startswith("http"):
+        raise HTTPException(404, "alamat jaringan lokal tidak ditemukan")
+    img = qrcode.make(target, box_size=6, border=2)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return Response(content=buf.getvalue(), media_type="image/png",
+                    headers={"Cache-Control": "no-store"})
 
 
 # ---------------------------------------------------------------------------

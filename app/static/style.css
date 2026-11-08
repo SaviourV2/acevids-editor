@@ -12,8 +12,12 @@ code { background: var(--panel2); padding: 1px 5px; border-radius: 4px; font-siz
 .brand span { color: var(--accent); }
 .tagline { color: var(--muted); flex: 1; }
 .health { font-size: 12px; color: var(--muted); }
+.phone-box { display: flex; gap: 14px; align-items: center; margin: 12px 12px 0; padding: 10px 12px; background: var(--panel); border: 1px solid var(--accent2); border-radius: 10px; font-size: 13px; }
+.phone-box img { width: 120px; height: 120px; background: #fff; border-radius: 6px; flex: none; }
+.phone-urls a { display: inline-block; margin: 4px 8px 4px 0; font-size: 15px; font-weight: 600; }
 .layout { display: grid; grid-template-columns: 300px 1fr 380px; gap: 12px; padding: 12px; min-height: calc(100vh - 110px); }
-@media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+@media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } .tagline { display: none; } .phone-box { flex-direction: column; } }
+@media (max-width: 600px) { .topbar { gap: 8px; padding: 8px 10px; flex-wrap: wrap; } .health { display: none; } .layout { padding: 8px; gap: 8px; } .panel { padding: 10px; } .inout input { width: 72px; } .foot { display: none; } }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; overflow: auto; }
 .panel h2 { margin: 0 0 10px; font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
 .muted { color: var(--muted); }

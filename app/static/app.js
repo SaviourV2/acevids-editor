@@ -30,7 +30,20 @@
     state.chunkSize = h.chunk_size || state.chunkSize;
     state.whisper = !!h.whisper; state.whisperModels = h.whisper_models || state.whisperModels; state.whisperDefault = h.whisper_default || state.whisperDefault;
     $("#health").textContent = `${h.ffmpeg.split(" ").slice(0, 3).join(" ")} · scenedetect ${h.scenedetect || "–"} · disk bebas ${h.disk_free_gb} GB`;
+    state.lanUrls = h.lan_urls || [];
   }).catch((e) => $("#health").textContent = "server tidak terjangkau: " + e.message);
+
+  // ------------------------------------------------------------------ buka di HP
+  $("#btn-phone").addEventListener("click", () => {
+    const box = $("#phone-box");
+    if (!box.classList.contains("hidden")) { box.classList.add("hidden"); return; }
+    const urls = state.lanUrls && state.lanUrls.length ? state.lanUrls : [location.origin];
+    $("#phone-urls").innerHTML = urls.map((u) => `<a href="${esc(u)}" target="_blank">${esc(u)}</a>`).join("");
+    const qr = $("#phone-qr");
+    qr.src = `/api/qr.png?url=${encodeURIComponent(urls[0])}&t=${Date.now()}`;
+    qr.onerror = () => { qr.style.display = "none"; };
+    box.classList.remove("hidden");
+  });
 
   // ------------------------------------------------------------------ upload
   const dz = $("#dropzone");
