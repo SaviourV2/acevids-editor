@@ -17,9 +17,12 @@ ACEVIDS/
 ## Mulai cepat
 
 ```bash
-bash scripts/setup.sh          # ffmpeg, sox, Python deps (fastapi, scenedetect, auto-editor, yt-dlp)
+bash scripts/setup.sh          # ffmpeg, sox, Python deps (fastapi, scenedetect, faster-whisper, auto-editor)
 bash scripts/run.sh            # http://localhost:8080
 ```
+
+macOS: pasang Homebrew lalu `brew install python ffmpeg sox` dulu; langkah
+lengkap per sistem ada di [docs/PANDUAN.md](docs/PANDUAN.md).
 
 Lalu buka `http://localhost:8080`:
 

@@ -5,6 +5,34 @@
 Butuh Python 3.10+, ffmpeg, dan koneksi ke huggingface.co (hanya untuk unduh
 model Whisper pertama kali).
 
+### macOS (MacBook)
+
+1. Buka **Terminal** (Spotlight → ketik Terminal).
+2. Pasang Homebrew bila belum ada:
+   ```bash
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+   ```
+3. Pasang alat dasar:
+   ```bash
+   brew install git python ffmpeg sox
+   ```
+4. Clone repo, buat virtualenv, jalankan setup:
+   ```bash
+   git clone https://github.com/SaviourV2/acevids-editor
+   cd acevids-editor
+   python3 -m venv .venv && source .venv/bin/activate
+   bash scripts/setup.sh
+   bash scripts/run.sh
+   ```
+5. Buka http://localhost:8080 di Safari/Chrome. Hentikan server dengan Ctrl+C.
+   Lain kali cukup `cd acevids-editor && source .venv/bin/activate && bash scripts/run.sh`.
+
+Apple Silicon (M1–M4) dan Intel sama-sama didukung; faster-whisper memakai CPU.
+Bila macOS memblokir biner `auto-editor` ("tidak dapat diverifikasi"), jalankan
+`xattr -d com.apple.quarantine "$(which auto-editor)"` sekali.
+
+### Linux (Ubuntu/Debian)
+
 ```bash
 git clone https://github.com/SaviourV2/acevids-editor
 cd acevids-editor
