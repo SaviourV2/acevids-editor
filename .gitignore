@@ -1,0 +1,12 @@
+# data runtime (upload, proxy, hasil render)
+data/
+*.corrupt.json
+# python
+__pycache__/
+*.pyc
+.venv/
+# node
+node_modules/
+# OS / editor
+.DS_Store
+.env
