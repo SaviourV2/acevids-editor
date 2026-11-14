@@ -1,0 +1,404 @@
+//! Application settings models
+
+use serde::{Deserialize, Serialize};
+
+/// Application settings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[derive(Default)]
+pub struct AppSettings {
+    pub general: GeneralSettings,
+    pub download: DownloadSettings,
+    pub editor: EditorSettings,
+    pub appearance: AppearanceSettings,
+    pub advanced: AdvancedSettings,
+}
+
+/// General settings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneralSettings {
+    pub language: String,
+    pub launch_on_startup: bool,
+    pub minimize_to_tray: bool,
+    pub close_to_tray: bool,
+    pub check_for_updates: bool,
+    pub auto_update_binaries: bool,
+}
+
+impl Default for GeneralSettings {
+    fn default() -> Self {
+        Self {
+            language: "en".to_string(),
+            launch_on_startup: false,
+            // Start visible by default — "start minimized" is opt-in. Defaulting
+            // this on makes a fresh launch look like the app failed to open.
+            minimize_to_tray: false,
+            close_to_tray: false,
+            check_for_updates: true,
+            auto_update_binaries: true,
+        }
+    }
+}
+
+/// Download settings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadSettings {
+    pub download_path: String,
+    pub default_quality: String,
+    pub default_format: String,
+    pub max_concurrent_downloads: u32,
+    pub create_channel_subfolder: bool,
+    pub include_date_in_filename: bool,
+    pub embed_thumbnail: bool,
+    pub embed_metadata: bool,
+    pub auto_retry: bool,
+    pub retry_attempts: u32,
+
+    // Filename template
+    #[serde(default = "default_filename_template")]
+    pub filename_template: String,
+
+    // Audio settings
+    #[serde(default = "default_audio_format")]
+    pub audio_format: String,
+    #[serde(default = "default_audio_bitrate")]
+    pub audio_bitrate: String,
+    #[serde(default = "default_codec")]
+    pub audio_codec: String,
+
+    // Video settings
+    #[serde(default = "default_codec")]
+    pub video_codec: String,
+    #[serde(default = "default_crf")]
+    pub crf_quality: u32,
+    #[serde(default = "default_encoding_preset")]
+    pub encoding_preset: String,
+
+    // Subtitle settings
+    #[serde(default)]
+    pub download_subtitles: bool,
+    #[serde(default)]
+    pub auto_subtitles: bool,
+    #[serde(default)]
+    pub embed_subtitles: bool,
+    #[serde(default = "default_subtitle_format")]
+    pub subtitle_format: String,
+    #[serde(default = "default_subtitle_language")]
+    pub subtitle_language: String,
+
+    // SponsorBlock settings
+    #[serde(default)]
+    pub sponsor_block: bool,
+    #[serde(default = "default_sponsor_categories")]
+    pub sponsor_block_categories: Vec<String>,
+
+    // Chapter settings
+    #[serde(default)]
+    pub download_chapters: bool,
+    #[serde(default)]
+    pub split_by_chapters: bool,
+
+    // Playlist settings
+    #[serde(default)]
+    pub playlist_start: u32,
+    #[serde(default)]
+    pub playlist_end: u32,
+    #[serde(default)]
+    pub playlist_items: String,
+
+    // Network/Performance settings
+    #[serde(default)]
+    pub rate_limit: String,
+    #[serde(default = "default_concurrent_fragments")]
+    pub concurrent_fragments: u32,
+    #[serde(default)]
+    pub cookies_from_browser: String,
+
+    // File handling settings
+    #[serde(default)]
+    pub restrict_filenames: bool,
+    #[serde(default)]
+    pub use_download_archive: bool,
+
+    // Write metadata files
+    #[serde(default)]
+    pub write_info_json: bool,
+    #[serde(default)]
+    pub write_description: bool,
+    #[serde(default)]
+    pub write_thumbnail: bool,
+
+    // Geo-bypass settings
+    #[serde(default)]
+    pub geo_bypass: bool,
+}
+
+fn default_audio_format() -> String {
+    "m4a".to_string()
+}
+
+fn default_audio_bitrate() -> String {
+    "192".to_string()
+}
+
+fn default_codec() -> String {
+    "auto".to_string()
+}
+
+fn default_subtitle_format() -> String {
+    "srt".to_string()
+}
+
+fn default_subtitle_language() -> String {
+    "en".to_string()
+}
+
+fn default_sponsor_categories() -> Vec<String> {
+    vec!["sponsor".to_string()]
+}
+
+fn default_concurrent_fragments() -> u32 {
+    1
+}
+
+fn default_filename_template() -> String {
+    "%(title)s.%(ext)s".to_string()
+}
+
+fn default_crf() -> u32 {
+    23
+}
+
+fn default_encoding_preset() -> String {
+    "medium".to_string()
+}
+
+/// Default download directory as a string (OS Videos/Clipy or Downloads/Clipy).
+/// Never empty — an empty path breaks yt-dlp's output template (resolves to
+/// drive root -> "permission denied").
+///
+/// NOTE: deliberately side-effect free. The directory is created by
+/// `paths::ensure_app_dirs` at startup and again lazily when a download
+/// starts, so merely constructing default settings (tests, parsing, resets)
+/// never touches the filesystem.
+fn default_download_path() -> String {
+    crate::utils::paths::get_default_downloads_dir()
+        .to_string_lossy()
+        .to_string()
+}
+
+impl Default for DownloadSettings {
+    fn default() -> Self {
+        Self {
+            download_path: default_download_path(),
+            default_quality: "1080".to_string(),
+            default_format: "mp4".to_string(),
+            max_concurrent_downloads: 3,
+            create_channel_subfolder: false,
+            include_date_in_filename: false,
+            embed_thumbnail: true,
+            embed_metadata: true,
+            auto_retry: true,
+            retry_attempts: 3,
+            // Filename template
+            filename_template: default_filename_template(),
+            // Audio defaults
+            audio_format: default_audio_format(),
+            audio_bitrate: default_audio_bitrate(),
+            audio_codec: default_codec(),
+            // Video defaults
+            video_codec: default_codec(),
+            crf_quality: default_crf(),
+            encoding_preset: default_encoding_preset(),
+            // Subtitle defaults
+            download_subtitles: false,
+            auto_subtitles: false,
+            embed_subtitles: false,
+            subtitle_format: default_subtitle_format(),
+            subtitle_language: default_subtitle_language(),
+            // SponsorBlock defaults
+            sponsor_block: false,
+            sponsor_block_categories: default_sponsor_categories(),
+            // Chapter defaults
+            download_chapters: false,
+            split_by_chapters: false,
+            // Playlist defaults
+            playlist_start: 0,
+            playlist_end: 0,
+            playlist_items: String::new(),
+            // Network/Performance defaults
+            rate_limit: String::new(),
+            concurrent_fragments: default_concurrent_fragments(),
+            cookies_from_browser: String::new(),
+            // File handling defaults
+            restrict_filenames: false,
+            use_download_archive: false,
+            // Write metadata files
+            write_info_json: false,
+            write_description: false,
+            write_thumbnail: false,
+            // Geo-bypass defaults
+            geo_bypass: false,
+        }
+    }
+}
+
+/// Editor settings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditorSettings {
+    pub default_project_width: u32,
+    pub default_project_height: u32,
+    pub default_project_fps: u32,
+    pub auto_save: bool,
+    pub auto_save_interval: u32,
+    pub show_waveforms: bool,
+    pub snap_to_clips: bool,
+    pub snap_to_playhead: bool,
+    pub default_transition_duration: f64,
+}
+
+impl Default for EditorSettings {
+    fn default() -> Self {
+        Self {
+            default_project_width: 1920,
+            default_project_height: 1080,
+            default_project_fps: 30,
+            auto_save: true,
+            auto_save_interval: 60,
+            show_waveforms: true,
+            snap_to_clips: true,
+            snap_to_playhead: true,
+            default_transition_duration: 0.5,
+        }
+    }
+}
+
+/// Appearance settings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppearanceSettings {
+    pub theme: String,
+    pub accent_color: String,
+    pub font_size: String,
+    pub reduced_motion: bool,
+}
+
+impl Default for AppearanceSettings {
+    fn default() -> Self {
+        Self {
+            theme: "system".to_string(),
+            accent_color: "#3b82f6".to_string(),
+            font_size: "medium".to_string(),
+            reduced_motion: false,
+        }
+    }
+}
+
+/// Advanced settings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdvancedSettings {
+    pub ffmpeg_path: String,
+    pub ytdlp_path: String,
+    pub temp_path: String,
+    pub cache_path: String,
+    pub max_cache_size: u64,
+    pub hardware_acceleration: bool,
+    #[serde(default = "default_hw_accel_type")]
+    pub hardware_acceleration_type: String,
+    pub debug_mode: bool,
+    pub proxy_url: String,
+}
+
+fn default_hw_accel_type() -> String {
+    "auto".to_string()
+}
+
+impl Default for AdvancedSettings {
+    fn default() -> Self {
+        Self {
+            ffmpeg_path: String::new(),
+            ytdlp_path: String::new(),
+            temp_path: String::new(),
+            cache_path: String::new(),
+            max_cache_size: 500,
+            hardware_acceleration: true,
+            hardware_acceleration_type: default_hw_accel_type(),
+            debug_mode: false,
+            proxy_url: String::new(),
+        }
+    }
+}
+
+/// Binary status information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[derive(Default)]
+pub struct BinaryStatus {
+    pub ffmpeg_installed: bool,
+    pub ffmpeg_version: Option<String>,
+    pub ffmpeg_path: Option<String>,
+    pub ytdlp_installed: bool,
+    pub ytdlp_version: Option<String>,
+    pub ytdlp_path: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_download_path_is_never_empty() {
+        let s = DownloadSettings::default();
+        assert!(!s.download_path.is_empty());
+        assert!(s.download_path.ends_with("Clipy"));
+    }
+
+    #[test]
+    fn older_config_without_new_fields_still_parses() {
+        let mut json = serde_json::to_value(AppSettings::default()).unwrap();
+        let download = json["download"].as_object_mut().unwrap();
+        for key in [
+            "filenameTemplate",
+            "audioFormat",
+            "audioBitrate",
+            "audioCodec",
+            "videoCodec",
+            "crfQuality",
+            "encodingPreset",
+            "subtitleFormat",
+            "subtitleLanguage",
+            "sponsorBlockCategories",
+            "concurrentFragments",
+        ] {
+            download.remove(key);
+        }
+        json["advanced"]
+            .as_object_mut()
+            .unwrap()
+            .remove("hardwareAccelerationType");
+
+        let s: AppSettings = serde_json::from_value(json).unwrap();
+        assert_eq!(s.download.filename_template, "%(title)s.%(ext)s");
+        assert_eq!(s.download.audio_format, "m4a");
+        assert_eq!(s.download.audio_bitrate, "192");
+        assert_eq!(s.download.video_codec, "auto");
+        assert_eq!(s.download.crf_quality, 23);
+        assert_eq!(s.download.encoding_preset, "medium");
+        assert_eq!(s.download.subtitle_format, "srt");
+        assert_eq!(s.download.subtitle_language, "en");
+        assert_eq!(s.download.sponsor_block_categories, ["sponsor"]);
+        assert_eq!(s.download.concurrent_fragments, 1);
+        assert_eq!(s.advanced.hardware_acceleration_type, "auto");
+    }
+
+    #[test]
+    fn binary_status_defaults_to_not_installed() {
+        let b = BinaryStatus::default();
+        assert!(!b.ffmpeg_installed && !b.ytdlp_installed);
+        assert!(serde_json::to_value(&b).unwrap()["ffmpegPath"].is_null());
+    }
+}

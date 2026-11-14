@@ -1,0 +1,6 @@
+# Prettier and rustfmt expect LF; force it even with core.autocrlf=true.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.png binary
+*.ico binary
+*.icns binary

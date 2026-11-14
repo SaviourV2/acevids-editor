@@ -1,0 +1,23 @@
+{
+  "$schema": "https://schema.tauri.app/config/2/capability",
+  "identifier": "default",
+  "description": "Default capabilities for Clipy. Only what the frontend calls: core IPC/events/app info, native file dialogs, opening http(s) links in the browser, and checking for/installing signed updates then relaunching. File access goes through Rust commands that apply their own path policy.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:default",
+    "core:webview:default",
+    {
+      "identifier": "core:app:allow-set-app-theme",
+      "allow": [{ "theme": null }]
+    },
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message",
+    "dialog:allow-ask",
+    "dialog:allow-confirm",
+    "shell:allow-open",
+    "updater:default",
+    "process:allow-restart"
+  ]
+}
