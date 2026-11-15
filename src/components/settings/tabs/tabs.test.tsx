@@ -317,7 +317,7 @@ describe("BinaryCard", () => {
     expect(screen.queryByRole("button")).toBeNull();
 
     rerender(ytdlp({ status: status({ managed: false }), checking: false, onCheck: vi.fn() }));
-    expect(screen.getByText("Version 2026.06.09 · managed outside Clipy")).toBeInTheDocument();
+    expect(screen.getByText("Version 2026.06.09 · managed outside ACEVIDS")).toBeInTheDocument();
     expect(screen.queryByRole("button")).toBeNull();
 
     rerender(
@@ -346,7 +346,7 @@ describe("BinaryCard", () => {
     expect(onCheck).toHaveBeenCalledTimes(1);
   });
 
-  it("shows only the version for tools Clipy doesn't update", () => {
+  it("shows only the version for tools ACEVIDS doesn't update", () => {
     render(
       <BinaryCard
         name="FFmpeg"

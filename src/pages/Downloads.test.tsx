@@ -115,7 +115,10 @@ describe("Downloads page", () => {
 
   it("plays the real file, not the output directory", async () => {
     const { user } = setup([
-      downloadFixture({ status: "completed", filePath: "C:\\Users\\me\\Videos\\Clipy\\rick.mp4" }),
+      downloadFixture({
+        status: "completed",
+        filePath: "C:\\Users\\me\\Videos\\ACEVIDS\\rick.mp4",
+      }),
     ]);
     await user.click(row("d1").getByRole("button", { name: "Play" }));
     const video = document.querySelector("video");

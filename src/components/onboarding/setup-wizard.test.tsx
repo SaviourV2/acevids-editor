@@ -11,7 +11,7 @@ function setup(handlers: Record<string, IpcHandler> = {}) {
   const onComplete = vi.fn();
   const backend = mockBackend({
     get_settings: () => settingsFixture({ download: { downloadPath: "" } }),
-    get_default_download_path: () => "C:\\Users\\me\\Videos\\Clipy",
+    get_default_download_path: () => "C:\\Users\\me\\Videos\\ACEVIDS",
     check_binaries: () => binaryStatusFixture(),
     ...handlers,
   });
@@ -47,7 +47,7 @@ async function toComplete(user: User) {
 describe("SetupWizard", () => {
   it("walks forward and back through every step", async () => {
     const { user } = setup();
-    expect(screen.getByText("Welcome to Clipy")).toBeInTheDocument();
+    expect(screen.getByText("Welcome to ACEVIDS")).toBeInTheDocument();
     await toBinaries(user);
     await next(user, /Back/);
     expect(step()).toBe("Step 1 of 6");
@@ -162,7 +162,7 @@ describe("SetupWizard", () => {
       const { user } = setup();
       await toBasics(user);
       const input = screen.getByRole("textbox", { name: "Download location" });
-      await waitFor(() => expect(input).toHaveValue("C:\\Users\\me\\Videos\\Clipy"));
+      await waitFor(() => expect(input).toHaveValue("C:\\Users\\me\\Videos\\ACEVIDS"));
       await user.clear(input);
       expect(screen.getByRole("button", { name: /Continue/ })).toBeDisabled();
     });
@@ -240,7 +240,7 @@ describe("SetupWizard", () => {
     expect(screen.getByTestId("crf-value")).toHaveTextContent("22");
     await next(user);
 
-    await user.click(screen.getByRole("button", { name: /Start Using Clipy/ }));
+    await user.click(screen.getByRole("button", { name: /Start Using ACEVIDS/ }));
     await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
 
     expect(backend.callsTo("update_setting")).toHaveLength(0);
@@ -272,7 +272,7 @@ describe("SetupWizard", () => {
     });
     const { user } = renderWithRouter(<SetupWizard />);
     await toComplete(user);
-    await user.click(screen.getByRole("button", { name: /Start Using Clipy/ }));
+    await user.click(screen.getByRole("button", { name: /Start Using ACEVIDS/ }));
     await waitFor(() => expect(useUIStore.getState().isFirstRun).toBe(false));
   });
 
@@ -300,7 +300,7 @@ describe("SetupWizard", () => {
     }
     const { user, backend } = setup({ get_settings: () => sparse });
     await toComplete(user);
-    await user.click(screen.getByRole("button", { name: /Start Using Clipy/ }));
+    await user.click(screen.getByRole("button", { name: /Start Using ACEVIDS/ }));
     await waitFor(() => expect(backend.callsTo("update_settings")).toHaveLength(1));
     const saved = backend.callsTo("update_settings")[0]?.args.settings as AppSettings;
     expect(saved.download).toMatchObject({
@@ -322,7 +322,7 @@ describe("SetupWizard", () => {
     await user.click(screen.getByRole("combobox", { name: "Browser cookies" }));
     await user.click(await screen.findByRole("option", { name: "None" }));
     await next(user);
-    await user.click(screen.getByRole("button", { name: /Start Using Clipy/ }));
+    await user.click(screen.getByRole("button", { name: /Start Using ACEVIDS/ }));
     await waitFor(() => expect(backend.callsTo("update_settings")).toHaveLength(1));
     const saved = backend.callsTo("update_settings")[0]?.args.settings as AppSettings;
     expect(saved.download.cookiesFromBrowser).toBe("");
@@ -336,12 +336,12 @@ describe("SetupWizard", () => {
       },
     });
     await toComplete(user);
-    await user.click(screen.getByRole("button", { name: /Start Using Clipy/ }));
+    await user.click(screen.getByRole("button", { name: /Start Using ACEVIDS/ }));
     expect(await screen.findByText("Couldn't save your settings")).toBeInTheDocument();
     expect(screen.getByText("disk full")).toBeInTheDocument();
     expect(onComplete).not.toHaveBeenCalled();
     expect(useUIStore.getState().isFirstRun).toBe(true);
-    expect(screen.getByRole("button", { name: /Start Using Clipy/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Start Using ACEVIDS/ })).toBeEnabled();
     errorSpy.mockRestore();
   });
 
@@ -353,7 +353,7 @@ describe("SetupWizard", () => {
       },
     });
     await toComplete(user);
-    await user.click(screen.getByRole("button", { name: /Start Using Clipy/ }));
+    await user.click(screen.getByRole("button", { name: /Start Using ACEVIDS/ }));
     expect(await screen.findByText("Couldn't save your settings")).toBeInTheDocument();
     errorSpy.mockRestore();
   });

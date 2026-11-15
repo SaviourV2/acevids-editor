@@ -51,7 +51,7 @@ describe("acknowledgements", () => {
 
 describe("settings constants", () => {
   it("points at the canonical repository", () => {
-    expect(REPOSITORY_URL).toBe("https://github.com/BankkRoll/clipy");
+    expect(REPOSITORY_URL).toBe("https://github.com/SaviourV2/acevids-editor");
   });
 
   it("lists every tab once", () => {

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Installer smoke test for macOS bundles (dmg + updater .app.tar.gz).
+# Installer smoke test for the macOS dmg bundle.
 #
 # Mounts the dmg, copies the app to /Applications, launches it with
-# CLIPY_SMOKE_TEST=1 (exits 0 once the frontend has booted), then removes it.
+# ACEVIDS_SMOKE_TEST=1 (exits 0 once the frontend has booted), then removes it.
 # Builds are unsigned, so this also confirms an unsigned, un-quarantined app
 # launches; downloaded copies additionally need `xattr -dr com.apple.quarantine`.
 #
@@ -11,7 +11,7 @@ set -euo pipefail
 
 BUNDLE_DIR="${1:?usage: macos.sh <bundle-dir>}"
 TIMEOUT="${SMOKE_TIMEOUT:-120}"
-MOUNT="/Volumes/clipy-smoke"
+MOUNT="/Volumes/acevids-smoke"
 
 DMG="$(ls "$BUNDLE_DIR"/dmg/*.dmg | head -n1)"
 echo "dmg: $DMG"
@@ -25,7 +25,7 @@ cp -R "$APP_SRC" /Applications/
 EXE="$(ls "/Applications/$APP_NAME/Contents/MacOS/" | head -n1)"
 
 echo "Launching /Applications/$APP_NAME/Contents/MacOS/$EXE in smoke mode"
-CLIPY_SMOKE_TEST=1 "/Applications/$APP_NAME/Contents/MacOS/$EXE" &
+ACEVIDS_SMOKE_TEST=1 "/Applications/$APP_NAME/Contents/MacOS/$EXE" &
 PID=$!
 for _ in $(seq "$TIMEOUT"); do
   kill -0 "$PID" 2>/dev/null || break
@@ -40,12 +40,5 @@ wait "$PID"
 echo "Smoke launch OK"
 
 rm -rf "/Applications/$APP_NAME"
-
-# The updater consumes the .app.tar.gz; make sure it exists and unpacks.
-TARBALL="$(ls "$BUNDLE_DIR"/macos/*.app.tar.gz 2>/dev/null | head -n1 || true)"
-if [ -n "$TARBALL" ]; then
-  tar -tzf "$TARBALL" >/dev/null
-  echo "updater tarball OK: $TARBALL"
-fi
 
 echo "macOS installer smoke tests passed"

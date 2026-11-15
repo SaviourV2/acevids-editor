@@ -1,6 +1,6 @@
 //! Library-related commands
 
-use crate::error::{ClipyError, Result};
+use crate::error::{AcevidsError, Result};
 use crate::models::library::LibraryVideo;
 use crate::services::database;
 use crate::utils::path_policy;
@@ -45,7 +45,7 @@ fn delete_video_file(file_path: &str) -> Result<()> {
     }
     let path = path_policy::ensure_deletable_media_file(file_path)?;
     std::fs::remove_file(&path)
-        .map_err(|e| ClipyError::Other(format!("Failed to delete file: {}", e)))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to delete file: {}", e)))?;
     info!("Deleted file: {}", path.display());
     Ok(())
 }
@@ -114,7 +114,7 @@ fn prepare_import(
     let path = path.as_path();
 
     let metadata = std::fs::metadata(path)
-        .map_err(|e| ClipyError::Other(format!("Failed to read file metadata: {}", e)))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to read file metadata: {}", e)))?;
 
     debug!("File size: {} bytes", metadata.len());
 
@@ -168,7 +168,7 @@ pub fn get_video_file_size(file_path: String) -> Result<u64> {
     debug!("Getting file size for: {}", file_path);
     let path = path_policy::ensure_media_file(&file_path)?;
     let metadata = std::fs::metadata(path)
-        .map_err(|e| ClipyError::Other(format!("Failed to read file metadata: {}", e)))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to read file metadata: {}", e)))?;
     let size = metadata.len();
     debug!("File size: {} bytes ({} MB)", size, size / (1024 * 1024));
     Ok(size)
@@ -184,7 +184,7 @@ pub fn rename_library_video(id: String, new_title: String) -> Result<()> {
     let video = videos
         .iter()
         .find(|v| v.id == id)
-        .ok_or_else(|| ClipyError::Library("Video not found".into()))?;
+        .ok_or_else(|| AcevidsError::Library("Video not found".into()))?;
 
     // Create updated video
     let updated_video = LibraryVideo {
@@ -283,7 +283,7 @@ pub fn export_library_json() -> Result<String> {
     let videos = database::get_library_videos()?;
     debug!("Exporting {} videos", videos.len());
     let json = serde_json::to_string_pretty(&videos)
-        .map_err(|e| ClipyError::Library(format!("Failed to serialize library: {}", e)))?;
+        .map_err(|e| AcevidsError::Library(format!("Failed to serialize library: {}", e)))?;
     debug!("Exported JSON: {} bytes", json.len());
     Ok(json)
 }
@@ -301,7 +301,7 @@ pub fn export_library_to_file(path: String) -> Result<()> {
 
 fn write_library_export(target: &Path, json: &str) -> Result<()> {
     std::fs::write(target, json)
-        .map_err(|e| ClipyError::Library(format!("Failed to write library file: {}", e)))
+        .map_err(|e| AcevidsError::Library(format!("Failed to write library file: {}", e)))
 }
 
 #[cfg(test)]
@@ -400,16 +400,16 @@ mod tests {
         fs::write(&exe, b"MZ").unwrap();
         assert!(matches!(
             add_library_video(entry(&s(&exe))),
-            Err(ClipyError::InvalidPath(_))
+            Err(AcevidsError::InvalidPath(_))
         ));
         assert!(matches!(
             add_library_video(entry("relative.mp4")),
-            Err(ClipyError::InvalidPath(_))
+            Err(AcevidsError::InvalidPath(_))
         ));
         for bad in ["evil.bat", "evil.exe", "lib.txt"] {
             assert!(matches!(
                 export_library_to_file(s(&dir.path().join(bad))),
-                Err(ClipyError::InvalidPath(_))
+                Err(AcevidsError::InvalidPath(_))
             ));
         }
     }
@@ -418,7 +418,7 @@ mod tests {
     async fn import_video_rejects_before_touching_db() {
         assert!(matches!(
             import_video("ftp://x/y.mp4".into(), None, None).await,
-            Err(ClipyError::InvalidPath(_))
+            Err(AcevidsError::InvalidPath(_))
         ));
     }
 

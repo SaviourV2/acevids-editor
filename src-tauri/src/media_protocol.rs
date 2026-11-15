@@ -1,4 +1,4 @@
-//! Custom `clipy-media://` URI scheme for serving local media files to the
+//! Custom `acevids-media://` URI scheme for serving local media files to the
 //! webview, with HTTP range support so `<video>`/`<audio>` can seek.
 //!
 //! Why not the built-in `asset:` protocol? On Windows, Tauri's asset protocol
@@ -11,9 +11,9 @@
 //! ## How the URL actually looks at runtime
 //!
 //! The frontend builds the `<video src>` with Tauri's `convertFileSrc(path,
-//! "clipy-media")`. Per the Tauri docs the webview reaches a custom scheme via:
-//!   - Windows (WebView2): `http://clipy-media.localhost/<percent-encoded-path>`
-//!   - macOS / Linux:       `clipy-media://localhost/<percent-encoded-path>`
+//! "acevids-media")`. Per the Tauri docs the webview reaches a custom scheme via:
+//!   - Windows (WebView2): `http://acevids-media.localhost/<percent-encoded-path>`
+//!   - macOS / Linux:       `acevids-media://localhost/<percent-encoded-path>`
 //!
 //! In every case `request.uri().path()` yields the percent-encoded path
 //! component, which we decode ourselves.
@@ -53,7 +53,7 @@ use tracing::{debug, warn};
 use crate::utils::path_policy;
 
 /// The scheme name registered in `lib.rs`.
-pub const SCHEME: &str = "clipy-media";
+pub const SCHEME: &str = "acevids-media";
 
 /// Upper bound on a single response body. Open-ended or oversized ranges are
 /// truncated to this many bytes; the client follows up with further ranges.
@@ -66,7 +66,7 @@ const MAX_GRANTS: usize = 10_000;
 /// [`compare_key`] form.
 static GRANTS: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
 
-/// Build a `clipy-media://localhost/<encoded>` URL for an absolute local path.
+/// Build a `acevids-media://localhost/<encoded>` URL for an absolute local path.
 ///
 /// Every non-alphanumeric byte is percent-encoded so the URL passes the
 /// webview's URL safety check regardless of the filename.
@@ -316,7 +316,7 @@ fn serve_file(canon: &Path, range_header: Option<&str>, max_chunk: u64) -> Respo
     let mut file = match File::open(canon) {
         Ok(f) => f,
         Err(e) => {
-            warn!("clipy-media: open failed {:?}: {}", canon, e);
+            warn!("acevids-media: open failed {:?}: {}", canon, e);
             return empty(404);
         }
     };
@@ -338,7 +338,7 @@ fn serve_file(canon: &Path, range_header: Option<&str>, max_chunk: u64) -> Respo
             if file.read_to_end(&mut buf).is_err() {
                 return empty(404);
             }
-            debug!("clipy-media: 200 {} bytes {:?}", total, canon);
+            debug!("acevids-media: 200 {} bytes {:?}", total, canon);
             Response::builder()
                 .status(200)
                 .header("Content-Type", mime)
@@ -353,7 +353,7 @@ fn serve_file(canon: &Path, range_header: Option<&str>, max_chunk: u64) -> Respo
             if file.seek(SeekFrom::Start(start)).is_err() || file.read_exact(&mut buf).is_err() {
                 return empty(404);
             }
-            debug!("clipy-media: 206 {}-{}/{} {:?}", start, end, total, canon);
+            debug!("acevids-media: 206 {}-{}/{} {:?}", start, end, total, canon);
             Response::builder()
                 .status(206)
                 .header("Content-Type", mime)
@@ -380,7 +380,7 @@ fn respond(
         Ok(c) => c,
         Err(Denied::NotFound) => return empty(404),
         Err(Denied::Forbidden) => {
-            warn!("clipy-media: blocked {:?}", raw);
+            warn!("acevids-media: blocked {:?}", raw);
             return empty(403);
         }
     };
@@ -435,7 +435,7 @@ mod tests {
     fn uri_for(path: &Path) -> String {
         let s = path.to_string_lossy().replace('\\', "/");
         let enc = percent_encode(s.as_bytes(), NON_ALPHANUMERIC).to_string();
-        format!("http://clipy-media.localhost/{enc}")
+        format!("http://acevids-media.localhost/{enc}")
     }
 
     fn deny(_: &Path) -> bool {
@@ -495,13 +495,13 @@ mod tests {
 
     #[test]
     fn url_encodes_special_chars() {
-        let p = "C:/Users/x/Videos/Clipy/Justin (Suga's Reaction).mp4";
+        let p = "C:/Users/x/Videos/ACEVIDS/Justin (Suga's Reaction).mp4";
         let url = to_media_url(p);
-        assert!(url.starts_with("clipy-media://localhost/"));
+        assert!(url.starts_with("acevids-media://localhost/"));
         assert!(!url.contains(' '));
         assert!(!url.contains('('));
         assert!(!url.contains('\''));
-        let after = url.strip_prefix("clipy-media://localhost/").unwrap();
+        let after = url.strip_prefix("acevids-media://localhost/").unwrap();
         assert_eq!(percent_decode_str(after).decode_utf8_lossy(), p);
     }
 
@@ -764,7 +764,7 @@ mod tests {
         let root_s = root.to_string_lossy().replace('\\', "/");
         let enc_root = percent_encode(root_s.as_bytes(), NON_ALPHANUMERIC).to_string();
         let trav = format!(
-            "http://clipy-media.localhost/{enc_root}%2Fsub%2F%2e%2e%2F%2e%2e%2Foutside.mp4"
+            "http://acevids-media.localhost/{enc_root}%2Fsub%2F%2e%2e%2F%2e%2e%2Foutside.mp4"
         );
         assert_eq!(respond(&req(&trav, None), &roots, deny).status(), 403);
 
@@ -777,7 +777,7 @@ mod tests {
 
         // UNC host.
         let unc = format!(
-            "http://clipy-media.localhost/{}",
+            "http://acevids-media.localhost/{}",
             percent_encode(br"\\evil\share\a.mp4", NON_ALPHANUMERIC)
         );
         let status = respond(&req(&unc, None), &roots, deny).status();

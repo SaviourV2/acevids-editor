@@ -70,7 +70,7 @@ describe("PreviewPlayer", () => {
   it("loads the active video via mediaSrc and syncs time, volume and speed", () => {
     render(<PreviewPlayer />);
     const v = video();
-    expect(v.getAttribute("src")).toContain("clipy-media");
+    expect(v.getAttribute("src")).toContain("acevids-media");
     expect(v.getAttribute("src")).toContain("%281%29");
     expect(screen.getByRole("status", { name: "Loading video" })).toBeInTheDocument();
     fireEvent.loadedData(v);

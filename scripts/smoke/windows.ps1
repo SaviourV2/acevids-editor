@@ -4,7 +4,7 @@
 
 .DESCRIPTION
   For each installer: silent install, verify the executable landed, launch it
-  with CLIPY_SMOKE_TEST=1 (the app exits 0 once the frontend has booted and
+  with ACEVIDS_SMOKE_TEST=1 (the app exits 0 once the frontend has booted and
   reported ready, non-zero on failure), then silent uninstall and verify
   removal. Exits non-zero on the first failure.
 
@@ -23,7 +23,7 @@ $ErrorActionPreference = "Stop"
 
 function Invoke-SmokeLaunch([string]$exe) {
   Write-Host "Launching $exe in smoke mode"
-  $env:CLIPY_SMOKE_TEST = "1"
+  $env:ACEVIDS_SMOKE_TEST = "1"
   try {
     $proc = Start-Process -FilePath $exe -PassThru
     if (-not $proc.WaitForExit($TimeoutSeconds * 1000)) {
@@ -33,7 +33,7 @@ function Invoke-SmokeLaunch([string]$exe) {
     if ($proc.ExitCode -ne 0) { throw "App exited with code $($proc.ExitCode)" }
     Write-Host "Smoke launch OK"
   } finally {
-    Remove-Item Env:CLIPY_SMOKE_TEST -ErrorAction SilentlyContinue
+    Remove-Item Env:ACEVIDS_SMOKE_TEST -ErrorAction SilentlyContinue
   }
 }
 
@@ -45,12 +45,12 @@ function Find-AppExe([string]$dir) {
   return $exe.FullName
 }
 
-# --- NSIS (installMode: currentUser -> %LOCALAPPDATA%\Clipy) ---------------
+# --- NSIS (installMode: currentUser -> %LOCALAPPDATA%\ACEVIDS) ---------------
 $nsis = Get-ChildItem -Path (Join-Path $BundleDir "nsis") -Filter *-setup.exe | Select-Object -First 1
 if (-not $nsis) { throw "NSIS installer not found" }
 Write-Host "NSIS: $($nsis.FullName)"
 Start-Process -FilePath $nsis.FullName -ArgumentList "/S" -Wait
-$nsisDir = Join-Path $env:LOCALAPPDATA "Clipy"
+$nsisDir = Join-Path $env:LOCALAPPDATA "ACEVIDS"
 Invoke-SmokeLaunch (Find-AppExe $nsisDir)
 Start-Process -FilePath (Join-Path $nsisDir "uninstall.exe") -ArgumentList "/S" -Wait
 # The NSIS uninstaller re-launches itself from %TEMP% and returns early.
@@ -63,7 +63,7 @@ if ($SkipMsi) {
   exit 0
 }
 
-# --- MSI (per-machine -> Program Files\Clipy) --------------------------------
+# --- MSI (per-machine -> Program Files\ACEVIDS) --------------------------------
 $msi = Get-ChildItem -Path (Join-Path $BundleDir "msi") -Filter *.msi | Select-Object -First 1
 if (-not $msi) { throw "MSI not found" }
 Write-Host "MSI: $($msi.FullName)"
@@ -72,14 +72,14 @@ $log = Join-Path $tempDir "msi-install.log"
 $p = Start-Process msiexec.exe -ArgumentList "/i `"$($msi.FullName)`" /qn /norestart /l*v `"$log`"" -Wait -PassThru
 if ($p.ExitCode -ne 0) { Get-Content $log -Tail 50; throw "msiexec install failed: $($p.ExitCode)" }
 # NOTE: Tauri's MSI reuses an InstallDir remembered in the registry, which the
-# NSIS installer above also writes, so it may land in %LOCALAPPDATA%\Clipy
+# NSIS installer above also writes, so it may land in %LOCALAPPDATA%\ACEVIDS
 # rather than Program Files. Take whichever candidate actually has the app.
-$candidates = @(Join-Path $env:ProgramFiles "Clipy") +
+$candidates = @(Join-Path $env:ProgramFiles "ACEVIDS") +
   (Get-ChildItem HKCU:\Software, HKLM:\Software -ErrorAction SilentlyContinue |
-    Where-Object { $_.PSChildName -match 'clipy' } |
+    Where-Object { $_.PSChildName -match 'acevids' } |
     Get-ChildItem -ErrorAction SilentlyContinue |
     ForEach-Object { $_.GetValue("InstallDir") } | Where-Object { $_ }) +
-  @(Join-Path $env:LOCALAPPDATA "Clipy")
+  @(Join-Path $env:LOCALAPPDATA "ACEVIDS")
 $msiDir = $candidates | Where-Object { $_ -and (Test-Path (Join-Path $_ "*.exe")) } | Select-Object -First 1
 if (-not $msiDir) { Get-Content $log -Tail 50; throw "MSI reported success but no install dir has the app: $($candidates -join ', ')" }
 Write-Host "MSI installed to $msiDir"

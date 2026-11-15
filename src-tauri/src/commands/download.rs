@@ -146,7 +146,7 @@ pub fn validate_url(url: String) -> bool {
 ///
 /// # Example
 /// ```
-/// use clipy_lib::commands::download::host_matches;
+/// use acevids_lib::commands::download::host_matches;
 /// assert!(host_matches("m.youtube.com", "youtube.com"));
 /// assert!(!host_matches("notyoutube.com", "youtube.com"));
 /// ```

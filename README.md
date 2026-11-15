@@ -1,19 +1,23 @@
-# Clipy
+# ACEVIDS
 
 An open-source, bloat-free desktop app for downloading videos from YouTube and
 1000+ other sites in their original quality, then editing them in a built-in
 timeline editor.
 
-**[⬇ Download the latest release](https://github.com/BankkRoll/clipy/releases/latest)**
-for Windows, macOS or Linux.
+ACEVIDS is a renamed fork of [Clipy](https://github.com/BankkRoll/clipy) by
+BankkRoll (MIT), started from Clipy 2.0.2 with the in-app updater removed.
 
-[![Latest release](https://img.shields.io/github/v/release/BankkRoll/clipy)](https://github.com/BankkRoll/clipy/releases/latest)
-[![CI](https://github.com/BankkRoll/clipy/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/BankkRoll/clipy/actions/workflows/ci.yml)
+Installers will appear under
+[Releases](https://github.com/SaviourV2/acevids-editor/releases) once a
+version is tagged; until then, [build from source](#development).
+
+[![Latest release](https://img.shields.io/github/v/release/SaviourV2/acevids-editor)](https://github.com/SaviourV2/acevids-editor/releases/latest)
+[![CI](https://github.com/SaviourV2/acevids-editor/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/SaviourV2/acevids-editor/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 ![Tauri](https://img.shields.io/badge/Tauri-2-blue)
 
-<img width="1872" height="1073" alt="Clipy" src="https://github.com/user-attachments/assets/3fcacf8c-102a-4c24-aa5e-6d4cdaff5d35" />
+<img width="1872" height="1073" alt="ACEVIDS" src="https://github.com/user-attachments/assets/3fcacf8c-102a-4c24-aa5e-6d4cdaff5d35" />
 
 ## Features
 
@@ -45,25 +49,24 @@ for Windows, macOS or Linux.
 ### Native Experience
 
 - Built with Tauri 2.0 for native performance
-- Small installers: about 4 MB on Windows (versus 202 MB for the Electron 1.0
-  build) and 5 MB for the Linux `.deb`/`.rpm`. The AppImage is larger because
-  it bundles its own video playback libraries.
+- Small installers: about 4 MB on Windows and 5 MB for the Linux
+  `.deb`/`.rpm`. The AppImage is larger because it bundles its own video
+  playback libraries.
 - System tray integration
 - Native file dialogs
-- Signed automatic updates
 - First-run setup wizard
 
 ## Installation
 
-Download the installer for your platform from the [latest release](https://github.com/BankkRoll/clipy/releases/latest).
-Clipy installs FFmpeg and yt-dlp for you on first launch, and updates itself
-from then on.
+Download the installer for your platform from the [latest release](https://github.com/SaviourV2/acevids-editor/releases/latest).
+ACEVIDS installs FFmpeg and yt-dlp for you on first launch. The app does not
+update itself: install a newer release over the old one to upgrade.
 
-| Platform | File                                                             |
-| -------- | ---------------------------------------------------------------- |
-| Windows  | `Clipy_<version>_x64-setup.exe` (per-user) or `_x64_en-US.msi`   |
-| macOS    | `Clipy_<version>_universal.dmg` (Apple Silicon and Intel)        |
-| Linux    | `Clipy_<version>_amd64.AppImage`, `_amd64.deb`, or `.x86_64.rpm` |
+| Platform | File                                                               |
+| -------- | ------------------------------------------------------------------ |
+| Windows  | `ACEVIDS_<version>_x64-setup.exe` (per-user) or `_x64_en-US.msi`   |
+| macOS    | `ACEVIDS_<version>_universal.dmg` (Apple Silicon and Intel)        |
+| Linux    | `ACEVIDS_<version>_amd64.AppImage`, `_amd64.deb`, or `.x86_64.rpm` |
 
 ### Unsigned builds
 
@@ -71,13 +74,13 @@ Releases are not code-signed, so the OS warns on first launch:
 
 - **Windows**: SmartScreen shows "Windows protected your PC". Choose
   **More info → Run anyway**.
-- **macOS**: opening it shows _"Clipy is damaged and can't be opened"_ (or
+- **macOS**: opening it shows _"ACEVIDS is damaged and can't be opened"_ (or
   _"cannot be opened because the developer cannot be verified"_). The app
-  isn't damaged; macOS blocks unsigned downloads. After copying Clipy to
+  isn't damaged; macOS blocks unsigned downloads. After copying ACEVIDS to
   Applications, run this once in Terminal:
 
   ```bash
-  xattr -dr com.apple.quarantine /Applications/Clipy.app
+  xattr -dr com.apple.quarantine /Applications/ACEVIDS.app
   ```
 
 ### Verifying a download
@@ -87,11 +90,8 @@ build-provenance attestation, proving it was built by this repository's
 release workflow from the tagged commit:
 
 ```bash
-gh attestation verify Clipy_2.0.0_x64-setup.exe --repo BankkRoll/clipy
+gh attestation verify ACEVIDS_2.0.0_x64-setup.exe --repo SaviourV2/acevids-editor
 ```
-
-In-app updates are separately verified against Clipy's update signing key
-before they are installed.
 
 ## Development
 
@@ -136,8 +136,8 @@ sudo pacman -S webkit2gtk-4.1 base-devel curl wget file openssl libappindicator-
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/BankkRoll/clipy.git
-cd clipy
+git clone https://github.com/SaviourV2/acevids-editor.git
+cd acevids-editor
 ```
 
 2. Install dependencies:
@@ -196,7 +196,7 @@ pnpm coverage       # Both, plus a combined summary
 - **Rust coverage** needs `rustup component add llvm-tools-preview` and
   `cargo install cargo-llvm-cov`. Reports land in `coverage/`.
 - **Installers**: `scripts/smoke/` installs each bundle silently, launches it
-  with `CLIPY_SMOKE_TEST=1` (the app exits 0 once its UI has loaded), then
+  with `ACEVIDS_SMOKE_TEST=1` (the app exits 0 once its UI has loaded), then
   uninstalls it. The release workflow runs these on every OS before
   publishing.
 
@@ -206,9 +206,7 @@ Push a `vX.Y.Z` tag whose version matches `package.json`,
 `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and a `CHANGELOG.md`
 section. The release workflow only runs for the repository owner, re-runs the
 full CI matrix, builds and smoke-tests every installer in a draft release,
-then publishes it with `SHA256SUMS.txt`, provenance attestations and the
-signed `latest.json` the in-app updater reads. The updater signing key lives
-only in the protected `release` environment.
+then publishes it with `SHA256SUMS.txt` and provenance attestations.
 
 ## Tech Stack
 
@@ -235,10 +233,9 @@ only in the protected `release` environment.
 ## Project Structure
 
 ```
-clipy/
+acevids-editor/
 ├── src/                          # React frontend
 │   ├── components/               # UI components
-│   │   ├── dialogs/              # App update dialog
 │   │   ├── downloads/            # Download management components
 │   │   ├── editor/               # Video editor components
 │   │   ├── home/                 # Home page components
@@ -268,7 +265,7 @@ clipy/
 │   │   │   ├── process_registry.rs # Process tracking for downloads
 │   │   │   ├── queue.rs          # Download queue
 │   │   │   └── ytdlp.rs          # yt-dlp operations
-│   │   ├── media_protocol.rs     # clipy-media:// streaming for local playback
+│   │   ├── media_protocol.rs     # acevids-media:// streaming for local playback
 │   │   └── utils/                # Path policy, paths, logging, tray, smoke mode
 │   ├── capabilities/             # Tauri capabilities (webview permissions)
 │   ├── icons/                    # App icons
@@ -282,18 +279,18 @@ clipy/
 
 ## Configuration
 
-Clipy stores its settings (`config.json`), library database, downloaded
+ACEVIDS stores its settings (`config.json`), library database, downloaded
 tools (FFmpeg, yt-dlp, whisper) and caches in:
 
-- **Windows**: `%APPDATA%\com.clipy.app`
-- **macOS**: `~/Library/Application Support/com.clipy.app`
-- **Linux**: `~/.local/share/com.clipy.app`
+- **Windows**: `%APPDATA%\com.acevids.app`
+- **macOS**: `~/Library/Application Support/com.acevids.app`
+- **Linux**: `~/.local/share/com.acevids.app`
 
 Logs are kept for 7 days in:
 
-- **Windows**: `%LOCALAPPDATA%\Clipy\logs`
-- **macOS**: `~/Library/Application Support/Clipy/logs`
-- **Linux**: `~/.local/share/Clipy/logs`
+- **Windows**: `%LOCALAPPDATA%\ACEVIDS\logs`
+- **macOS**: `~/Library/Application Support/ACEVIDS/logs`
+- **Linux**: `~/.local/share/ACEVIDS/logs`
 
 ## Security
 
@@ -316,6 +313,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
+- [Clipy](https://github.com/BankkRoll/clipy) - The app ACEVIDS is forked from
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) - Video downloading
 - [FFmpeg](https://ffmpeg.org/) - Video processing
 - [Tauri](https://tauri.app/) - Desktop app framework
@@ -332,4 +330,4 @@ If you find this project helpful, please consider:
 
 ---
 
-Made with love by [BankkRoll](https://github.com/BankkRoll)
+Based on [Clipy](https://github.com/BankkRoll/clipy), made by [BankkRoll](https://github.com/BankkRoll).

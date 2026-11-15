@@ -65,7 +65,7 @@ pub fn is_valid_path(path: &str) -> bool {
 /// # Examples
 ///
 /// ```
-/// use clipy_lib::utils::validators::validate_media_url;
+/// use acevids_lib::utils::validators::validate_media_url;
 /// assert!(validate_media_url("https://www.youtube.com/watch?v=jNQXAC9IVRw").is_ok());
 /// assert!(validate_media_url("--exec=calc").is_err());
 /// assert!(validate_media_url("file:///etc/passwd").is_err());
@@ -99,7 +99,7 @@ pub fn validate_media_url(url: &str) -> Result<String, String> {
 /// # Examples
 ///
 /// ```
-/// use clipy_lib::utils::validators::redact_url_credentials;
+/// use acevids_lib::utils::validators::redact_url_credentials;
 /// assert_eq!(
 ///     redact_url_credentials("http://bob:hunter2@proxy:8080"),
 ///     "http://***@proxy:8080/"

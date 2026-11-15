@@ -1,8 +1,8 @@
 name: Release
 
 # Owner-only, tag-driven release:
-#   authorize -> ci (full test matrix) -> draft release -> build + sign updater
-#   artifacts + install/launch smoke test on every OS -> checksums + publish.
+#   authorize -> ci (full test matrix) -> draft release -> build installers +
+#   install/launch smoke test on every OS -> checksums + publish.
 # Nothing becomes public until every platform has built AND passed its smoke
 # test; the release stays a draft otherwise.
 on:
@@ -38,10 +38,10 @@ jobs:
           ACTOR: ${{ github.actor }}
           REF_TYPE: ${{ github.ref_type }}
         run: |
-          if [ "$REPO" != "BankkRoll/clipy" ]; then
-            echo "::error::Not the canonical repository (BankkRoll/clipy)."; exit 1
+          if [ "$REPO" != "SaviourV2/acevids-editor" ]; then
+            echo "::error::Not the canonical repository (SaviourV2/acevids-editor)."; exit 1
           fi
-          if [ "$ACTOR" != "BankkRoll" ]; then
+          if [ "$ACTOR" != "SaviourV2" ]; then
             echo "::error::Actor '$ACTOR' is not the repository owner."; exit 1
           fi
           if [ "$REF_TYPE" != "tag" ]; then
@@ -69,8 +69,8 @@ jobs:
         with:
           persist-credentials: false
 
-      # Installer file names and the updater manifest come from the config
-      # version, so a tag that disagrees would publish mislabelled binaries.
+      # Installer file names come from the config version, so a tag that
+      # disagrees would publish mislabelled binaries.
       - name: Verify version consistency
         run: node scripts/check-version.mjs "${{ steps.resolve.outputs.version }}"
 
@@ -109,7 +109,7 @@ jobs:
           # creating a draft can miss it.
           ID="$(gh api -X POST "repos/${GITHUB_REPOSITORY}/releases" \
             -f tag_name="$TAG" \
-            -f name="Clipy $VERSION" \
+            -f name="ACEVIDS $VERSION" \
             -F body=@notes.md \
             -F draft=true \
             -F prerelease="$PRERELEASE" \
@@ -191,17 +191,11 @@ jobs:
         uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # SECURITY: updater signing key lives only in the protected `release`
-          # environment. Without it the build fails rather than shipping
-          # unsigned updater artifacts.
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           releaseId: ${{ needs.draft.outputs.release_id }}
           tagName: ${{ needs.authorize.outputs.tag }}
-          uploadUpdaterJson: true
-          # NSIS installs per-user, so updates apply without an admin prompt.
-          updaterJsonPreferNsis: true
+          # The app has no in-app updater, so there is no manifest to publish.
+          uploadUpdaterJson: false
           args: ${{ matrix.args }}
 
       - name: Smoke test installers (Windows)
@@ -259,18 +253,17 @@ jobs:
               "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" > "assets/${name}"
           done
 
-      # Every platform must have shipped its installers and updater bundle, or
-      # the release stays a draft.
+      # Every platform must have shipped its installers, or the release stays
+      # a draft.
       - name: Verify expected assets
         working-directory: assets
         run: |
           set -e
           ls -la
-          for pattern in '*_x64-setup.exe' '*_x64_en-US.msi' '*_universal.dmg' '*_universal.app.tar.gz' \
-                         '*_amd64.deb' '*_amd64.AppImage' '*.x86_64.rpm' 'latest.json' '*.sig'; do
+          for pattern in '*_x64-setup.exe' '*_x64_en-US.msi' '*_universal.dmg' \
+                         '*_amd64.deb' '*_amd64.AppImage' '*.x86_64.rpm'; do
             compgen -G "$pattern" > /dev/null || { echo "::error::Missing asset matching $pattern"; exit 1; }
           done
-          node -e "const j=require('./latest.json'); for (const p of ['windows-x86_64','linux-x86_64','darwin-aarch64','darwin-x86_64']) { if (!j.platforms[p]?.signature) { console.error('latest.json missing ' + p); process.exit(1) } }"
 
       - name: Generate SHA256SUMS
         working-directory: assets

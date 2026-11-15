@@ -1,17 +1,17 @@
 [package]
-name = "clipy"
+name = "acevids"
 version = "2.0.2"
 description = "Open-source YouTube video downloader and editor"
 authors = ["BankkRoll <https://github.com/BankkRoll>"]
 license = "MIT"
-repository = "https://github.com/BankkRoll/clipy"
+repository = "https://github.com/SaviourV2/acevids-editor"
 edition = "2021"
 # Uses std APIs stabilized in 1.80 (LazyLock, etc.). Tauri 2 itself requires a
 # recent toolchain, so 1.80 is a safe, accurate floor.
 rust-version = "1.80"
 
 [lib]
-name = "clipy_lib"
+name = "acevids_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -21,9 +21,7 @@ tauri-build = { version = "2", features = [] }
 # Tauri core
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-dialog = "2"
-tauri-plugin-process = "2"
 tauri-plugin-shell = "2"
-tauri-plugin-updater = "2"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

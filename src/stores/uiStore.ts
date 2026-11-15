@@ -28,7 +28,7 @@ export const useUIStore = create<UIState>()(
       completeOnboarding: () => set({ isFirstRun: false }),
     }),
     {
-      name: "clipy-ui-storage",
+      name: "acevids-ui-storage",
       partialize: (state) => ({
         isFirstRun: state.isFirstRun,
         sidebarCollapsed: state.sidebarCollapsed,

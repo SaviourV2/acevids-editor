@@ -224,7 +224,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
         return (
           <div className="space-y-8">
             <div className="space-y-3 text-center">
-              <h1 className="text-3xl font-bold tracking-tight">Welcome to Clipy</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Welcome to ACEVIDS</h1>
               <p className="text-muted-foreground">
                 Download and edit videos from YouTube and 1000+ sites
               </p>
@@ -260,7 +260,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
             <div className="space-y-2 text-center">
               <h2 className="text-2xl font-bold">Required Components</h2>
               <p className="text-sm text-muted-foreground">
-                Clipy needs these open-source tools to work
+                ACEVIDS needs these open-source tools to work
               </p>
             </div>
 
@@ -663,7 +663,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
               <div>
                 <h2 className="text-2xl font-bold">You're All Set</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Clipy is ready. Start by pasting a video URL.
+                  ACEVIDS is ready. Start by pasting a video URL.
                 </p>
               </div>
             </div>
@@ -694,7 +694,7 @@ export function SetupWizard({ onComplete }: SetupWizardProps) {
                 ) : (
                   <ArrowRight className="mr-2 h-4 w-4" />
                 )}
-                Start Using Clipy
+                Start Using ACEVIDS
               </Button>
             </div>
           </div>

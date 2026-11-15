@@ -1,5 +1,5 @@
 /**
- * WebdriverIO config for end-to-end tests against the real Clipy binary.
+ * WebdriverIO config for end-to-end tests against the real ACEVIDS binary.
  *
  * tauri-driver (Windows: msedgedriver; Linux: WebKitWebDriver) drives the
  * actual app with its real Rust backend, real yt-dlp/FFmpeg and real network.
@@ -10,9 +10,9 @@
  * - Windows: msedgedriver matching the installed WebView2 on PATH (or set
  *   MSEDGEDRIVER_PATH). Linux: `webkit2gtk-driver` and `xvfb`.
  * - A built app: `pnpm tauri build --debug --no-bundle`
- *   (override with CLIPY_E2E_APP).
+ *   (override with ACEVIDS_E2E_APP).
  *
- * The suite expects a fresh profile (no prior Clipy data), as on CI.
+ * The suite expects a fresh profile (no prior ACEVIDS data), as on CI.
  */
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
@@ -20,13 +20,13 @@ import os from "node:os";
 import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
-const exe = process.platform === "win32" ? "clipy.exe" : "clipy";
+const exe = process.platform === "win32" ? "acevids.exe" : "acevids";
 const application =
-  process.env.CLIPY_E2E_APP ?? path.join(root, "src-tauri", "target", "debug", exe);
+  process.env.ACEVIDS_E2E_APP ?? path.join(root, "src-tauri", "target", "debug", exe);
 
 /** Scratch directory for downloads and exports; read by the specs. */
-export const workDir = mkdtempSync(path.join(os.tmpdir(), "clipy-e2e-"));
-process.env.CLIPY_E2E_WORKDIR = workDir;
+export const workDir = mkdtempSync(path.join(os.tmpdir(), "acevids-e2e-"));
+process.env.ACEVIDS_E2E_WORKDIR = workDir;
 
 let driver: ChildProcess | undefined;
 

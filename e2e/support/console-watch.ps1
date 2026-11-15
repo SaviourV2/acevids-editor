@@ -6,7 +6,7 @@
   Polls the desktop for visible classic console (ConsoleWindowClass) and
   Windows Terminal (CASCADIA_HOSTING_WINDOW_CLASS) windows and prints one
   "NEW <handle>|<class>|<title>" line per window that wasn't there at start.
-  Clipy is a GUI app: any such window means a child process was spawned
+  ACEVIDS is a GUI app: any such window means a child process was spawned
   without CREATE_NO_WINDOW and flashed a terminal at the user.
 #>
 $ErrorActionPreference = "Stop"

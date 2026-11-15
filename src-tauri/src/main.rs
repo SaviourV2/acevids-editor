@@ -5,5 +5,5 @@
 )]
 
 fn main() {
-    clipy_lib::run()
+    acevids_lib::run()
 }

@@ -179,15 +179,15 @@ describe("Editor page: project files", () => {
     loadEditor(twoClipProject());
     useEditorStore.getState().setProjectName("My Cut");
     const { backend, user } = setup("/editor", {
-      "plugin:dialog|save": () => "C:\\out\\cut.clipy",
+      "plugin:dialog|save": () => "C:\\out\\cut.acevids",
     });
     await user.click(await screen.findByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(backend.callsTo("save_project")).toHaveLength(1));
     const [dialogCall] = backend.callsTo("plugin:dialog|save");
-    expect(dialogCall!.args.options).toMatchObject({ defaultPath: "My Cut.clipy" });
+    expect(dialogCall!.args.options).toMatchObject({ defaultPath: "My Cut.acevids" });
     const { args } = backend.callsTo("save_project")[0]!;
-    expect(args.path).toBe("C:\\out\\cut.clipy");
+    expect(args.path).toBe("C:\\out\\cut.acevids");
     const sent = args.project as ReturnType<typeof toBackendProject>;
     expect(sent.tracks[0]!.trackType).toBe("video");
     expect(sent.tracks[0]!.clips.map((c) => c.clipType)).toEqual(["video", "video"]);
@@ -203,7 +203,7 @@ describe("Editor page: project files", () => {
     await waitFor(() => expect(backend.callsTo("plugin:dialog|save")).toHaveLength(1));
     expect(backend.callsTo("save_project")).toHaveLength(0);
 
-    backend.on("plugin:dialog|save", () => "C:\\x.clipy");
+    backend.on("plugin:dialog|save", () => "C:\\x.acevids");
     backend.on("save_project", () => {
       throw "disk full";
     });
@@ -215,12 +215,12 @@ describe("Editor page: project files", () => {
     const saved = twoClipProject();
     saved.name = "From Disk";
     const { backend, user } = setup("/editor", {
-      "plugin:dialog|open": () => "C:\\p.clipy",
+      "plugin:dialog|open": () => "C:\\p.acevids",
       load_project: () => JSON.parse(JSON.stringify(toBackendProject(saved))),
     });
     await user.click(await screen.findByRole("button", { name: "Open" }));
     await waitFor(() => expect(currentProject().name).toBe("From Disk"));
-    expect(backend.callsTo("load_project")[0]!.args).toEqual({ path: "C:\\p.clipy" });
+    expect(backend.callsTo("load_project")[0]!.args).toEqual({ path: "C:\\p.acevids" });
     expect(currentProject()).toEqual(saved);
     expect(useEditorStore.getState().historyIndex).toBe(0);
     expect(toast.success).toHaveBeenCalledWith("Project loaded");
@@ -232,7 +232,7 @@ describe("Editor page: project files", () => {
     await waitFor(() => expect(backend.callsTo("plugin:dialog|open")).toHaveLength(1));
     expect(backend.callsTo("load_project")).toHaveLength(0);
 
-    backend.on("plugin:dialog|open", () => "C:\\bad.clipy");
+    backend.on("plugin:dialog|open", () => "C:\\bad.acevids");
     backend.on("load_project", () => {
       throw "corrupt";
     });
@@ -334,7 +334,7 @@ describe("Editor page: preview", () => {
     loadEditor(project);
     setup();
     const video = await screen.findByTestId("preview-video");
-    expect(video.getAttribute("src")).toContain("clipy-media");
+    expect(video.getAttribute("src")).toContain("acevids-media");
     expect(video.getAttribute("src")).toContain("clip.mp4");
     expect(video.style.filter).toBe("blur(2px)");
     expect(video.style.transform).toContain("translate(10cqw, 0cqh)");
@@ -523,7 +523,7 @@ describe("Editor page: keyboard shortcuts", () => {
   });
 
   it("Ctrl+S saves", async () => {
-    const { backend } = setup("/editor", { "plugin:dialog|save": () => "C:\\s.clipy" });
+    const { backend } = setup("/editor", { "plugin:dialog|save": () => "C:\\s.acevids" });
     await screen.findByTestId("clip-a");
     press("s", { ctrlKey: true });
     await waitFor(() => expect(backend.callsTo("save_project")).toHaveLength(1));

@@ -1,4 +1,4 @@
-//! Integration tests exercising the public crate API of `clipy_lib`.
+//! Integration tests exercising the public crate API of `acevids_lib`.
 //!
 //! Covers pure helpers reachable without a Tauri `AppHandle`: filename
 //! sanitization, validators, error-code mapping, model serde round-trips and
@@ -8,14 +8,14 @@
 //! asserted here. The non-Windows `cfg` branches in `validators::is_valid_path`
 //! need CI runs on macOS/Linux to cover their absence of reserved-name checks.
 
-use clipy_lib::commands::download::{extract_video_id, validate_url};
-use clipy_lib::error::{ClipyError, ErrorResponse};
-use clipy_lib::models::download::{DownloadOptions, DownloadStatus, DownloadTask};
-use clipy_lib::models::library::LibraryVideo;
-use clipy_lib::models::project::{ClipType, ExportSettings, Project, ProjectSettings, TrackType};
-use clipy_lib::models::settings::AppSettings;
-use clipy_lib::utils::paths::sanitize_filename;
-use clipy_lib::utils::validators;
+use acevids_lib::commands::download::{extract_video_id, validate_url};
+use acevids_lib::error::{AcevidsError, ErrorResponse};
+use acevids_lib::models::download::{DownloadOptions, DownloadStatus, DownloadTask};
+use acevids_lib::models::library::LibraryVideo;
+use acevids_lib::models::project::{ClipType, ExportSettings, Project, ProjectSettings, TrackType};
+use acevids_lib::models::settings::AppSettings;
+use acevids_lib::utils::paths::sanitize_filename;
+use acevids_lib::utils::validators;
 
 // ---------------------------------------------------------------------------
 // sanitize_filename
@@ -161,34 +161,37 @@ fn command_extract_video_id_invalid_returns_none() {
 
 #[test]
 fn error_response_code_mapping() {
-    let cases: Vec<(ClipyError, &str)> = vec![
+    let cases: Vec<(AcevidsError, &str)> = vec![
         (
-            ClipyError::InvalidYouTubeUrl("x".into()),
+            AcevidsError::InvalidYouTubeUrl("x".into()),
             "INVALID_YOUTUBE_URL",
         ),
-        (ClipyError::VideoNotFound("x".into()), "VIDEO_NOT_FOUND"),
-        (ClipyError::DownloadFailed("x".into()), "DOWNLOAD_FAILED"),
-        (ClipyError::ExportFailed("x".into()), "EXPORT_FAILED"),
-        (ClipyError::BinaryNotFound("x".into()), "BINARY_NOT_FOUND"),
+        (AcevidsError::VideoNotFound("x".into()), "VIDEO_NOT_FOUND"),
+        (AcevidsError::DownloadFailed("x".into()), "DOWNLOAD_FAILED"),
+        (AcevidsError::ExportFailed("x".into()), "EXPORT_FAILED"),
+        (AcevidsError::BinaryNotFound("x".into()), "BINARY_NOT_FOUND"),
         (
-            ClipyError::BinaryExecutionFailed("x".into()),
+            AcevidsError::BinaryExecutionFailed("x".into()),
             "BINARY_EXECUTION_FAILED",
         ),
-        (ClipyError::ProcessError("x".into()), "PROCESS_ERROR"),
-        (ClipyError::ProjectNotFound("x".into()), "PROJECT_NOT_FOUND"),
-        (ClipyError::InvalidPath("x".into()), "INVALID_PATH"),
+        (AcevidsError::ProcessError("x".into()), "PROCESS_ERROR"),
         (
-            ClipyError::PermissionDenied("x".into()),
+            AcevidsError::ProjectNotFound("x".into()),
+            "PROJECT_NOT_FOUND",
+        ),
+        (AcevidsError::InvalidPath("x".into()), "INVALID_PATH"),
+        (
+            AcevidsError::PermissionDenied("x".into()),
             "PERMISSION_DENIED",
         ),
-        (ClipyError::Cancelled, "CANCELLED"),
-        (ClipyError::Other("x".into()), "UNKNOWN_ERROR"),
-        (ClipyError::FFmpeg("x".into()), "FFMPEG_ERROR"),
-        (ClipyError::Ytdlp("x".into()), "YTDLP_ERROR"),
-        (ClipyError::Download("x".into()), "DOWNLOAD_ERROR"),
-        (ClipyError::Library("x".into()), "LIBRARY_ERROR"),
-        (ClipyError::Config("x".into()), "CONFIG_ERROR"),
-        (ClipyError::ConfigError("x".into()), "CONFIG_ERROR"),
+        (AcevidsError::Cancelled, "CANCELLED"),
+        (AcevidsError::Other("x".into()), "UNKNOWN_ERROR"),
+        (AcevidsError::FFmpeg("x".into()), "FFMPEG_ERROR"),
+        (AcevidsError::Ytdlp("x".into()), "YTDLP_ERROR"),
+        (AcevidsError::Download("x".into()), "DOWNLOAD_ERROR"),
+        (AcevidsError::Library("x".into()), "LIBRARY_ERROR"),
+        (AcevidsError::Config("x".into()), "CONFIG_ERROR"),
+        (AcevidsError::ConfigError("x".into()), "CONFIG_ERROR"),
     ];
     for (err, expected_code) in cases {
         let resp: ErrorResponse = err.into();
@@ -198,29 +201,29 @@ fn error_response_code_mapping() {
 
 #[test]
 fn error_response_carries_message() {
-    let resp: ErrorResponse = ClipyError::VideoNotFound("abc".into()).into();
+    let resp: ErrorResponse = AcevidsError::VideoNotFound("abc".into()).into();
     assert_eq!(resp.message, "Video not found: abc");
 }
 
 #[test]
 fn error_io_from_conversion() {
     let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "missing");
-    let clipy: ClipyError = io_err.into();
-    let resp: ErrorResponse = clipy.into();
+    let acevids: AcevidsError = io_err.into();
+    let resp: ErrorResponse = acevids.into();
     assert_eq!(resp.code, "IO_ERROR");
 }
 
 #[test]
 fn error_anyhow_from_conversion() {
-    let clipy: ClipyError = anyhow::anyhow!("boom").into();
-    let resp: ErrorResponse = clipy.into();
+    let acevids: AcevidsError = anyhow::anyhow!("boom").into();
+    let resp: ErrorResponse = acevids.into();
     assert_eq!(resp.code, "UNKNOWN_ERROR");
     assert_eq!(resp.message, "boom");
 }
 
 #[test]
 fn error_serializes_to_code_and_message() {
-    let json = serde_json::to_value(ClipyError::FFmpeg("bad".into())).unwrap();
+    let json = serde_json::to_value(AcevidsError::FFmpeg("bad".into())).unwrap();
     assert_eq!(json["code"], "FFMPEG_ERROR");
     assert_eq!(json["message"], "FFmpeg error: bad");
 }
@@ -289,7 +292,7 @@ fn library_video_new_maps_fields_and_generates_id() {
 // ---------------------------------------------------------------------------
 
 fn sample_project() -> Project {
-    use clipy_lib::models::project::{Clip, ClipProperties, Track};
+    use acevids_lib::models::project::{Clip, ClipProperties, Track};
     Project {
         id: "p1".into(),
         name: "Demo".into(),

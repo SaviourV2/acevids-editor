@@ -26,7 +26,7 @@ export const useThemeStore = create<ThemeState>()(
       setTheme: (theme) => set({ theme }),
     }),
     {
-      name: "clipy-theme",
+      name: "acevids-theme",
       storage: createJSONStorage(() => localStorage),
     }
   )

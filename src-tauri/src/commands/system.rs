@@ -1,6 +1,6 @@
 //! System-related commands
 
-use crate::error::{ClipyError, Result};
+use crate::error::{AcevidsError, Result};
 use crate::models::settings::BinaryStatus;
 use crate::services::{binary, cache};
 use crate::utils::{path_policy, paths};
@@ -49,7 +49,7 @@ pub async fn check_binaries<R: Runtime>(app: AppHandle<R>) -> Result<BinaryStatu
     // disk); run it on the blocking pool so it never stalls an async worker.
     tokio::task::spawn_blocking(move || binary::check_binaries(&app))
         .await
-        .map_err(|e| ClipyError::Other(format!("Binary check task failed: {e}")))?
+        .map_err(|e| AcevidsError::Other(format!("Binary check task failed: {e}")))?
 }
 
 /// Install FFmpeg
@@ -68,7 +68,7 @@ pub async fn install_ytdlp<R: Runtime>(app: AppHandle<R>) -> Result<String> {
     path.map(|p| p.to_string_lossy().into_owned())
 }
 
-/// Update Clipy's yt-dlp to the latest verified release; returns its version.
+/// Update ACEVIDS's yt-dlp to the latest verified release; returns its version.
 #[tauri::command]
 pub async fn update_ytdlp<R: Runtime>(app: AppHandle<R>) -> Result<String> {
     info!("Updating yt-dlp via command");
@@ -134,7 +134,7 @@ impl ShellCommand {
             .args(&self.args)
             .spawn()
             .map(|_| ())
-            .map_err(|e| ClipyError::Other(format!("Failed to {what}: {e}")))
+            .map_err(|e| AcevidsError::Other(format!("Failed to {what}: {e}")))
     }
 }
 
@@ -201,7 +201,7 @@ pub async fn open_folder(path: String) -> Result<()> {
 #[tauri::command]
 pub async fn open_file(path: String) -> Result<()> {
     let file = validate_open_file(&path)?;
-    opener::open(&file).map_err(|e| ClipyError::Other(format!("Failed to open file: {}", e)))
+    opener::open(&file).map_err(|e| AcevidsError::Other(format!("Failed to open file: {}", e)))
 }
 
 /// Show file in file explorer
@@ -217,18 +217,18 @@ pub fn get_default_download_path() -> String {
     default_download_path(dirs::download_dir(), dirs::home_dir())
 }
 
-/// `<Downloads>/Clipy`, else `<home>/Downloads/Clipy`, else `<temp>/Clipy`
+/// `<Downloads>/ACEVIDS`, else `<home>/Downloads/ACEVIDS`, else `<temp>/ACEVIDS`
 /// (never relative: the working directory may be read-only).
 fn default_download_path(download_dir: Option<PathBuf>, home_dir: Option<PathBuf>) -> String {
     download_dir
         .or_else(|| home_dir.map(|home| home.join("Downloads")))
         .unwrap_or_else(std::env::temp_dir)
-        .join("Clipy")
+        .join("ACEVIDS")
         .to_string_lossy()
         .to_string()
 }
 
-/// Build a `clipy-media://` URL for a local file so the webview can play it via
+/// Build a `acevids-media://` URL for a local file so the webview can play it via
 /// our custom streaming protocol (the built-in asset protocol rejects many
 /// real-world filenames on Windows).
 #[tauri::command]
@@ -391,19 +391,19 @@ mod tests {
         };
         assert_eq!(
             p(Some("/dl"), Some("/home")),
-            Path::new("/dl").join("Clipy")
+            Path::new("/dl").join("ACEVIDS")
         );
         assert_eq!(
             p(None, Some("/home")),
-            Path::new("/home").join("Downloads").join("Clipy")
+            Path::new("/home").join("Downloads").join("ACEVIDS")
         );
-        assert_eq!(p(None, None), std::env::temp_dir().join("Clipy"));
+        assert_eq!(p(None, None), std::env::temp_dir().join("ACEVIDS"));
     }
 
     #[test]
     fn shell_commands_spawn_or_report_failure() {
         let missing = ShellCommand {
-            program: "clipy-definitely-missing-program",
+            program: "acevids-definitely-missing-program",
             args: Vec::new(),
         };
         let err = missing.spawn("open folder").unwrap_err();
@@ -484,8 +484,8 @@ mod tests {
 
     #[test]
     fn simple_commands() {
-        assert!(get_default_download_path().ends_with("Clipy"));
-        assert!(media_url("/a b.mp4".into()).starts_with("clipy-media://localhost/"));
+        assert!(get_default_download_path().ends_with("ACEVIDS"));
+        assert!(media_url("/a b.mp4".into()).starts_with("acevids-media://localhost/"));
         let _ = is_admin();
     }
 }

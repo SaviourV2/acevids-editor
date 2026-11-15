@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import { Settings } from "@/pages/Settings";
 import { useThemeStore } from "@/stores/settingsStore";
-import { resetUpdaterStore, useUpdaterStore } from "@/stores/updaterStore";
 import { mockBackend, type IpcHandler } from "@/test/tauri";
 import { renderWithRouter } from "@/test/render";
 import { binaryStatusFixture, cacheStatsFixture, settingsFixture } from "@/test/fixtures";
@@ -60,7 +59,6 @@ beforeEach(() => {
 afterEach(() => {
   errorSpy.mockRestore();
   vi.unstubAllGlobals();
-  resetUpdaterStore();
 });
 
 describe("Settings page shell", () => {
@@ -111,7 +109,6 @@ describe("switches write their key", () => {
     ["General", "Launch on startup", "general.launchOnStartup", true],
     ["General", "Start minimized", "general.minimizeToTray", true],
     ["General", "Close to tray", "general.closeToTray", true],
-    ["General", "Auto-check for updates", "general.checkForUpdates", false],
     ["General", "Auto-update binaries", "general.autoUpdateBinaries", false],
     ["Downloads", "Organize by channel", "download.createChannelSubfolder", true],
     ["Downloads", "Include date in filename", "download.includeDateInFilename", true],
@@ -480,7 +477,7 @@ describe("maintenance actions", () => {
     const answers: boolean[] = [];
     const { user, backend } = setup({ "plugin:dialog|ask": () => answers.shift() ?? false });
     await openTab(user, "Advanced");
-    localStorage.setItem("clipy-ui-storage", "{}");
+    localStorage.setItem("acevids-ui-storage", "{}");
 
     answers.push(false);
     await user.click(screen.getByRole("button", { name: "Reset Everything" }));
@@ -512,7 +509,7 @@ describe("maintenance actions", () => {
     expect(await screen.findByText("Factory reset complete. Restarting...")).toBeInTheDocument();
     expect(backend.callsTo("reset_settings")).toHaveLength(1);
     expect(backend.callsTo("clear_cache")).toHaveLength(1);
-    expect(localStorage.getItem("clipy-ui-storage")).toBeNull();
+    expect(localStorage.getItem("acevids-ui-storage")).toBeNull();
     expect(reload).toBeDefined();
     timeoutSpy.mockRestore();
     // jsdom cannot navigate; calling the scheduled reload only reports that.
@@ -635,56 +632,16 @@ describe("required components", () => {
     expect(backend.callsTo("check_ytdlp_update")).toHaveLength(2);
   });
 
-  it("leaves a yt-dlp installed outside Clipy alone", async () => {
+  it("leaves a yt-dlp installed outside ACEVIDS alone", async () => {
     const { user } = setup({ check_ytdlp_update: () => ytdlpUpdate(true, { managed: false }) });
     await openTab(user, "Advanced");
     const ytdlp = within(screen.getByRole("group", { name: "yt-dlp" }));
-    expect(await ytdlp.findByText(/managed outside Clipy$/)).toBeInTheDocument();
+    expect(await ytdlp.findByText(/managed outside ACEVIDS$/)).toBeInTheDocument();
     expect(ytdlp.queryByRole("button")).toBeNull();
   });
 });
 
-describe("about and updates", () => {
-  const UPDATE = {
-    rid: 1,
-    currentVersion: "2.1.0",
-    version: "2.2.0",
-    body: "## Highlights\n- Faster exports",
-    rawJson: {},
-  };
-
-  async function check(user: User) {
-    await openTab(user, "About");
-    await screen.findByText("Version 2.1.0");
-    await user.click(screen.getByRole("button", { name: "Check for Updates" }));
-  }
-
-  it("hands a found update to the app-wide update dialog without toasting", async () => {
-    const { user, backend } = setup({ "plugin:updater|check": () => UPDATE });
-    await check(user);
-    await waitFor(() => expect(useUpdaterStore.getState().status).toBe("available"));
-    expect(useUpdaterStore.getState()).toMatchObject({ open: true, newVersion: "2.2.0" });
-    expect(backend.callsTo("plugin:updater|check")).toHaveLength(1);
-    expect(screen.queryByText("You're up to date!")).toBeNull();
-  });
-
-  it("reports up to date when the updater finds nothing", async () => {
-    const { user } = setup({ "plugin:updater|check": () => null });
-    await check(user);
-    expect(await screen.findByText("You're up to date!")).toBeInTheDocument();
-  });
-
-  it("reports a failed check and re-enables the button", async () => {
-    const { user } = setup({
-      "plugin:updater|check": () => {
-        throw "offline";
-      },
-    });
-    await check(user);
-    expect(await screen.findByText("Failed to check for updates")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Check for Updates" })).toBeEnabled();
-  });
-
+describe("about", () => {
   it("opens project and acknowledgement links through the shell", async () => {
     const { user, backend } = setup();
     await openTab(user, "About");
@@ -712,7 +669,7 @@ describe("about and updates", () => {
   it("uses the dark logo when the backend theme is dark", async () => {
     const { user } = setup({}, { appearance: { theme: "dark" } });
     await openTab(user, "About");
-    expect(screen.getByRole("img", { name: "Clipy" })).toHaveAttribute("src", "/logo-dark.png");
+    expect(screen.getByRole("img", { name: "ACEVIDS" })).toHaveAttribute("src", "/logo-dark.png");
   });
 
   it("follows the system color scheme while on the system theme", async () => {
@@ -728,9 +685,9 @@ describe("about and updates", () => {
     );
     const { user } = setup();
     await openTab(user, "About");
-    expect(screen.getByRole("img", { name: "Clipy" })).toHaveAttribute("src", "/logo-light.png");
+    expect(screen.getByRole("img", { name: "ACEVIDS" })).toHaveAttribute("src", "/logo-light.png");
     const { act } = await import("@testing-library/react");
     act(() => listeners.forEach((cb) => cb({ matches: true } as MediaQueryListEvent)));
-    expect(screen.getByRole("img", { name: "Clipy" })).toHaveAttribute("src", "/logo-dark.png");
+    expect(screen.getByRole("img", { name: "ACEVIDS" })).toHaveAttribute("src", "/logo-dark.png");
   });
 });

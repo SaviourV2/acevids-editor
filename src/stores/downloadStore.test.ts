@@ -209,7 +209,7 @@ describe("syncFromBackend", () => {
     ]);
     expect(get()).toMatchObject({
       quality: "1080p",
-      outputPath: "C:\\Users\\me\\Videos\\Clipy",
+      outputPath: "C:\\Users\\me\\Videos\\ACEVIDS",
       filePath: undefined,
       progress: 10,
     });

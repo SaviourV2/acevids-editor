@@ -20,7 +20,6 @@ import { SetupWizard } from "@/components/onboarding";
 import { Toaster } from "sonner";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
-import { AppUpdater } from "@/components/dialogs";
 import { logger } from "@/lib/logger";
 import { useDownloadSync, useSettings } from "@/hooks";
 import { useThemeStore } from "@/stores/settingsStore";
@@ -50,7 +49,7 @@ export function App() {
 
   // Loading settings here (once, app-wide) pushes theme and debug mode to
   // their consumers before any page asks for them.
-  const { settings } = useSettings();
+  useSettings();
   useDownloadSync();
 
   useEffect(() => {
@@ -94,7 +93,6 @@ export function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
-      <AppUpdater autoCheck={settings?.general.checkForUpdates} />
       <Toaster position="bottom-right" toastOptions={TOAST_OPTIONS} />
     </BrowserRouter>
   );

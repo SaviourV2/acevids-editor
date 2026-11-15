@@ -329,13 +329,13 @@ export function isRemoteSource(path: string): boolean {
 
 /**
  * Build a webview-safe URL for a local media file via our custom
- * `clipy-media` URI scheme (registered in src-tauri/src/media_protocol.rs).
+ * `acevids-media` URI scheme (registered in src-tauri/src/media_protocol.rs).
  *
- * We delegate to Tauri's `convertFileSrc(path, "clipy-media")` for ONE reason:
+ * We delegate to Tauri's `convertFileSrc(path, "acevids-media")` for ONE reason:
  * it emits the correct per-platform host form that the webview can actually
- * navigate to — `http://clipy-media.localhost/<path>` on Windows (WebView2) and
- * `clipy-media://localhost/<path>` on macOS/Linux. Feeding a raw
- * `clipy-media://` URL straight into <video src> on Windows fails WebView2's
+ * navigate to — `http://acevids-media.localhost/<path>` on Windows (WebView2) and
+ * `acevids-media://localhost/<path>` on macOS/Linux. Feeding a raw
+ * `acevids-media://` URL straight into <video src> on Windows fails WebView2's
  * URL safety check, which is the bug we were hitting.
  *
  * THE ACTUAL BUG. Tauri's `convertFileSrc` builds the media URL with
@@ -356,14 +356,14 @@ export function isRemoteSource(path: string): boolean {
  * always safe — the path round-trips back to the original either way.
  *
  * @param path - Absolute local file path.
- * @returns A `clipy-media` URL the webview can load.
+ * @returns A `acevids-media` URL the webview can load.
  */
 export function mediaSrc(path: string): string {
   // 1) backslashes -> forward slashes (so they encode to %2F, not %5C)
   const normalized = path.replace(/\\/g, "/");
   // 2) let Tauri build the correct per-platform host form, then
   // 3) escape the residual characters encodeURIComponent leaves behind.
-  return convertFileSrc(normalized, "clipy-media").replace(
+  return convertFileSrc(normalized, "acevids-media").replace(
     /[()'!*]/g,
     (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase()
   );

@@ -1,4 +1,4 @@
-//! Utility modules for Clipy
+//! Utility modules for ACEVIDS
 
 pub mod logger;
 pub mod path_policy;

@@ -49,9 +49,9 @@ afterEach(() => {
 describe("VideoPlayer sources", () => {
   it("routes local files and posters through the media protocol", () => {
     setup({ poster: "C:\\thumbs\\a.jpg" });
-    expect(video().getAttribute("src")).toMatch(/clipy-media/);
+    expect(video().getAttribute("src")).toMatch(/acevids-media/);
     expect(video().getAttribute("src")).toContain("%281%29");
-    expect(video().getAttribute("poster")).toMatch(/clipy-media/);
+    expect(video().getAttribute("poster")).toMatch(/acevids-media/);
     expect(screen.getByText("My clip")).toBeInTheDocument();
     expect(screen.getByText("My channel")).toBeInTheDocument();
   });
@@ -64,7 +64,7 @@ describe("VideoPlayer sources", () => {
 
   it("does not mistake a local path starting with 'http' for a URL", () => {
     setup({ src: "httpdocs/clip.mp4" });
-    expect(video().getAttribute("src")).toMatch(/clipy-media/);
+    expect(video().getAttribute("src")).toMatch(/acevids-media/);
   });
 
   it("renders inline without overlay chrome when asked", () => {

@@ -61,7 +61,7 @@ export function newFilter(type: FilterType): Filter {
  * @returns An id safe to use in `url(#...)`.
  */
 export function sharpenFilterId(clipId: string): string {
-  return `clipy-sharpen-${clipId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+  return `acevids-sharpen-${clipId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 }
 
 /**

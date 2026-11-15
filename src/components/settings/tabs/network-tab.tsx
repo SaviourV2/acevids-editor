@@ -103,7 +103,7 @@ export function NetworkTab({ settings, onUpdateSetting }: NetworkTabProps) {
       <SettingGroup title="Authentication" description="Access restricted content">
         <SettingItem
           label="Use browser cookies"
-          description="Only needed for age-restricted or members-only videos. If the cookies can't be read, Clipy downloads without them."
+          description="Only needed for age-restricted or members-only videos. If the cookies can't be read, ACEVIDS downloads without them."
         >
           <Select
             value={settings.download.cookiesFromBrowser || "none"}

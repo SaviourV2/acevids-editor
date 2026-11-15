@@ -258,10 +258,10 @@ describe("Layout and Sidebar", () => {
 
   it("collapses to icons with tooltips and expands again", async () => {
     const { user } = setupLayout();
-    expect(screen.getByText("Clipy")).toBeInTheDocument();
+    expect(screen.getByText("ACEVIDS")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Collapse sidebar" }));
     expect(useUIStore.getState().sidebarCollapsed).toBe(true);
-    expect(screen.queryByText("Clipy")).toBeNull();
+    expect(screen.queryByText("ACEVIDS")).toBeNull();
     expect(screen.getByRole("main")).toHaveClass("ml-16");
     await user.hover(screen.getByRole("link", { name: "Library" }));
     expect((await screen.findAllByText("Library")).length).toBeGreaterThan(0);
@@ -281,7 +281,7 @@ describe("Layout and Sidebar", () => {
         }) as unknown as MediaQueryList
     );
     setupLayout();
-    const logo = () => screen.getByRole("img", { name: "Clipy" });
+    const logo = () => screen.getByRole("img", { name: "ACEVIDS" });
     expect(logo()).toHaveAttribute("src", "/logo-light.png");
     act(() => listeners.forEach((cb) => cb({ matches: true } as MediaQueryListEvent)));
     expect(logo()).toHaveAttribute("src", "/logo-dark.png");

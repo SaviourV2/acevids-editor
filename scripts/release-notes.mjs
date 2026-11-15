@@ -40,9 +40,9 @@ const assets = [
   "---",
   "",
   "**Verify your download:** every asset is listed in `SHA256SUMS.txt` and has a",
-  "signed build-provenance attestation: `gh attestation verify <file> --repo BankkRoll/clipy`.",
+  "signed build-provenance attestation: `gh attestation verify <file> --repo SaviourV2/acevids-editor`.",
   "",
   "Builds are not code-signed. On Windows choose *More info → Run anyway* in SmartScreen;",
-  "on macOS run `xattr -dr com.apple.quarantine /Applications/Clipy.app` after copying the app.",
+  "on macOS run `xattr -dr com.apple.quarantine /Applications/ACEVIDS.app` after copying the app.",
 ];
 console.log(body + "\n" + assets.join("\n"));

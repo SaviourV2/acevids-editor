@@ -1,4 +1,4 @@
-//! Logging configuration for Clipy
+//! Logging configuration for ACEVIDS
 //!
 //! Responsibilities:
 //! - Install the global `tracing` subscriber (console + daily rolling file),
@@ -18,10 +18,10 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 /// Bundle identifier from `tauri.conf.json`; Tauri's `app_data_dir()` is
 /// `dirs::data_dir()/<identifier>`.
-const APP_IDENTIFIER: &str = "com.clipy.app";
+const APP_IDENTIFIER: &str = "com.acevids.app";
 
-/// Base name of the log file; the daily appender writes `clipy.log.YYYY-MM-DD`.
-const LOG_FILE_PREFIX: &str = "clipy.log";
+/// Base name of the log file; the daily appender writes `acevids.log.YYYY-MM-DD`.
+const LOG_FILE_PREFIX: &str = "acevids.log";
 
 /// Rolled log files older than this many days are deleted at startup.
 pub const LOG_RETENTION_DAYS: u64 = 7;
@@ -102,18 +102,18 @@ pub fn init_logging_in(log_dir: &Path, debug_mode: bool) -> bool {
 /// Default `EnvFilter` directive for the given debug mode.
 pub fn filter_directive(debug_mode: bool) -> &'static str {
     if debug_mode {
-        "debug,clipy_lib=trace"
+        "debug,acevids_lib=trace"
     } else {
-        "info,clipy_lib=info"
+        "info,acevids_lib=info"
     }
 }
 
-/// Delete rolled `clipy.log.*` files in `dir` older than `max_age` relative to
+/// Delete rolled `acevids.log.*` files in `dir` older than `max_age` relative to
 /// `now`, returning how many were removed.
 ///
 /// Age comes from the `YYYY-MM-DD` suffix the daily appender writes; files
 /// without a parseable date fall back to their modification time. Unrelated
-/// files and the bare `clipy.log` are never touched.
+/// files and the bare `acevids.log` are never touched.
 pub fn prune_old_logs(dir: &Path, max_age: Duration, now: SystemTime) -> usize {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return 0;
@@ -153,7 +153,7 @@ pub fn print_banner(version: &str, debug_mode: bool) {
     println!();
 
     if debug_mode {
-        println!("  [Clipy] Debug mode is enabled - verbose logging active");
+        println!("  [ACEVIDS] Debug mode is enabled - verbose logging active");
         println!();
     }
 }
@@ -176,7 +176,7 @@ pub fn read_debug_mode_from(path: &Path) -> bool {
 fn get_log_dir() -> PathBuf {
     dirs::data_local_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("Clipy")
+        .join("ACEVIDS")
         .join("logs")
 }
 
@@ -204,7 +204,7 @@ fn config_path_under(data_dir: &Path) -> PathBuf {
 ///
 /// # Example
 /// ```
-/// use clipy_lib::utils::logger::redact_url;
+/// use acevids_lib::utils::logger::redact_url;
 /// assert_eq!(
 ///     redact_url("http://user:pw@proxy.local:8080/x?token=1"),
 ///     "http://proxy.local:8080/x"
@@ -242,11 +242,13 @@ mod tests {
     fn config_path_uses_data_dir_like_tauri() {
         let expected = dirs::data_dir()
             .unwrap()
-            .join("com.clipy.app")
+            .join("com.acevids.app")
             .join("config.json");
         assert_eq!(get_config_path().unwrap(), expected);
         assert_eq!(config_path_under(Path::new("base")), {
-            Path::new("base").join("com.clipy.app").join("config.json")
+            Path::new("base")
+                .join("com.acevids.app")
+                .join("config.json")
         });
     }
 
@@ -287,25 +289,25 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path();
         for name in [
-            "clipy.log.2024-01-01",
-            "clipy.log.2024-01-05",
-            "clipy.log.2024-01-09",
-            "clipy.log.2024-01-02.1",
-            "clipy.log",
+            "acevids.log.2024-01-01",
+            "acevids.log.2024-01-05",
+            "acevids.log.2024-01-09",
+            "acevids.log.2024-01-02.1",
+            "acevids.log",
             "other.log.2020-01-01",
-            "clipy.log.nodate",
-            "clipy.log.fresh-nodate",
+            "acevids.log.nodate",
+            "acevids.log.fresh-nodate",
         ] {
             std::fs::write(dir.join(name), b"x").unwrap();
         }
         let now = at("2024-01-10");
         set_file_mtime(
-            dir.join("clipy.log.nodate"),
+            dir.join("acevids.log.nodate"),
             FileTime::from_system_time(now - Duration::from_secs(30 * DAY)),
         )
         .unwrap();
         set_file_mtime(
-            dir.join("clipy.log.fresh-nodate"),
+            dir.join("acevids.log.fresh-nodate"),
             FileTime::from_system_time(now - Duration::from_secs(DAY)),
         )
         .unwrap();
@@ -321,10 +323,10 @@ mod tests {
         assert_eq!(
             left,
             [
-                "clipy.log",
-                "clipy.log.2024-01-05",
-                "clipy.log.2024-01-09",
-                "clipy.log.fresh-nodate",
+                "acevids.log",
+                "acevids.log.2024-01-05",
+                "acevids.log.2024-01-09",
+                "acevids.log.fresh-nodate",
                 "other.log.2020-01-01",
             ]
         );

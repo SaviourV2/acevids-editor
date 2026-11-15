@@ -14,7 +14,7 @@ export const SETTINGS_TABS = [
 export type SettingsTab = (typeof SETTINGS_TABS)[number]["value"];
 
 /** Project repository opened by "View on GitHub". */
-export const REPOSITORY_URL = "https://github.com/BankkRoll/clipy";
+export const REPOSITORY_URL = "https://github.com/SaviourV2/acevids-editor";
 
 /** A credited project and where to read about it. */
 export interface Acknowledgement {
@@ -24,7 +24,7 @@ export interface Acknowledgement {
 }
 
 /**
- * Credits shown on the About tab. Each entry is something Clipy actually ships
+ * Credits shown on the About tab. Each entry is something ACEVIDS actually ships
  * or calls at runtime (checked against package.json / Cargo.toml by a test).
  */
 export const ACKNOWLEDGEMENTS: readonly Acknowledgement[] = [

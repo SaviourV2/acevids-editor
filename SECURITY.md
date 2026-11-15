@@ -2,8 +2,8 @@
 
 ## Supported versions
 
-Only the latest release gets security fixes. Clipy updates itself, so make
-sure automatic update checks are on (Settings → General).
+Only the latest release gets security fixes. ACEVIDS does not update itself,
+so install new releases yourself.
 
 | Version | Supported |
 | ------- | --------- |
@@ -13,10 +13,10 @@ sure automatic update checks are on (Settings → General).
 ## Reporting a vulnerability
 
 Please report vulnerabilities privately through
-[GitHub security advisories](https://github.com/BankkRoll/clipy/security/advisories/new),
+[GitHub security advisories](https://github.com/SaviourV2/acevids-editor/security/advisories/new),
 not in public issues.
 
-Include what you found, how to reproduce it, and the Clipy version and OS.
+Include what you found, how to reproduce it, and the ACEVIDS version and OS.
 You'll get a reply as soon as possible. Once a fix ships you'll be credited
 in the advisory unless you'd rather not be.
 
@@ -26,8 +26,5 @@ Every release asset is listed in `SHA256SUMS.txt` and has a signed
 build-provenance attestation:
 
 ```bash
-gh attestation verify <file> --repo BankkRoll/clipy
+gh attestation verify <file> --repo SaviourV2/acevids-editor
 ```
-
-In-app updates are verified against Clipy's update signing key before they
-are installed.

@@ -1,6 +1,6 @@
 /**
  * Settings page: every backend setting grouped into tabs, plus maintenance
- * actions (binaries, cache, reset) and the update check.
+ * actions (binaries, cache, reset).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshCw, Loader2, AlertCircle, ChevronRight } from "lucide-react";
@@ -13,7 +13,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { useSettings, useCacheStats, useBinaryStatus, useAppVersion } from "@/hooks";
 import { useThemeStore } from "@/stores/settingsStore";
-import { useUpdaterStore } from "@/stores/updaterStore";
 import { logger } from "@/lib/logger";
 import {
   SETTINGS_TABS,
@@ -40,8 +39,6 @@ function useSystemPrefersDark(): boolean {
 
 /** Settings page component. */
 export function Settings() {
-  const checkingUpdates = useUpdaterStore((state) => state.status === "checking");
-  const checkForUpdate = useUpdaterStore((state) => state.checkForUpdate);
   const [activeTab, setActiveTab] = useState("general");
   const [updatingYtdlp, setUpdatingYtdlp] = useState(false);
   const [installingFfmpeg, setInstallingFfmpeg] = useState(false);
@@ -128,21 +125,6 @@ export function Settings() {
     [runBinaryTask, installYtdlp]
   );
 
-  // A found update opens the app-wide update dialog (AppUpdater), so only the
-  // "nothing new" and failure outcomes need a toast here.
-  const handleCheckForUpdates = useCallback(async () => {
-    const outcome = await checkForUpdate({ manual: true });
-    if (outcome === "up-to-date") {
-      toast.success("You're up to date!", {
-        description: `Clipy ${appVersion} is the latest version.`,
-      });
-    } else if (outcome === "error") {
-      toast.error("Failed to check for updates", {
-        description: "Could not reach the update server. Try again later.",
-      });
-    }
-  }, [appVersion, checkForUpdate]);
-
   const handleUpdateSetting = useCallback(
     async (path: string, value: unknown) => {
       try {
@@ -218,7 +200,7 @@ export function Settings() {
     );
     if (!confirmed) return;
 
-    const doubleConfirmed = await ask("This cannot be undone. Reset Clipy now?", {
+    const doubleConfirmed = await ask("This cannot be undone. Reset ACEVIDS now?", {
       title: "Confirm Factory Reset",
       kind: "warning",
     });
@@ -360,12 +342,7 @@ export function Settings() {
               </TabsContent>
 
               <TabsContent value="about" className="mt-0">
-                <AboutTab
-                  isDark={isDark}
-                  version={appVersion}
-                  checkingUpdates={checkingUpdates}
-                  onCheckForUpdates={handleCheckForUpdates}
-                />
+                <AboutTab isDark={isDark} version={appVersion} />
               </TabsContent>
             </div>
           </div>

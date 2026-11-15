@@ -47,7 +47,7 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // Custom colors for Clipy
+        // Custom colors for ACEVIDS
         timeline: {
           DEFAULT: "hsl(var(--timeline))",
           track: "hsl(var(--timeline-track))",

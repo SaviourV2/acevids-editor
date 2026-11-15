@@ -1,6 +1,6 @@
 //! yt-dlp service for video information extraction and downloading
 
-use crate::error::{ClipyError, Result};
+use crate::error::{AcevidsError, Result};
 use crate::models::download::{DownloadOptions, DownloadProgress, DownloadStatus};
 use crate::models::video::{VideoFormat, VideoInfo};
 use crate::services::binary;
@@ -49,9 +49,9 @@ struct YtdlpFormat {
     tbr: Option<f64>,
 }
 
-/// Validate a URL for yt-dlp, mapping failures to a `ClipyError`.
+/// Validate a URL for yt-dlp, mapping failures to a `AcevidsError`.
 fn checked_url(url: &str) -> Result<String> {
-    validators::validate_media_url(url).map_err(ClipyError::Ytdlp)
+    validators::validate_media_url(url).map_err(AcevidsError::Ytdlp)
 }
 
 /// Arguments for a metadata-only `--dump-json` run.
@@ -84,17 +84,17 @@ async fn fetch_video_info_with(ytdlp_path: &Path, args: &[String]) -> Result<Vid
         .args(args)
         .output()
         .await
-        .map_err(|e| ClipyError::Ytdlp(format!("Failed to run yt-dlp: {}", e)))?;
+        .map_err(|e| AcevidsError::Ytdlp(format!("Failed to run yt-dlp: {}", e)))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         error!("yt-dlp error: {}", stderr);
-        return Err(ClipyError::Ytdlp(format!("yt-dlp failed: {}", stderr)));
+        return Err(AcevidsError::Ytdlp(format!("yt-dlp failed: {}", stderr)));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let raw_info: YtdlpVideoInfo = serde_json::from_str(&stdout)
-        .map_err(|e| ClipyError::Ytdlp(format!("Failed to parse video info: {}", e)))?;
+        .map_err(|e| AcevidsError::Ytdlp(format!("Failed to parse video info: {}", e)))?;
 
     let video_info = convert_video_info(raw_info);
     debug!(
@@ -571,7 +571,7 @@ async fn run_download(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| ClipyError::Ytdlp(format!("Failed to spawn yt-dlp: {}", e)))?;
+        .map_err(|e| AcevidsError::Ytdlp(format!("Failed to spawn yt-dlp: {}", e)))?;
 
     if let Some(pid) = child.id() {
         if let Some(registry) = crate::services::process_registry::get_registry() {
@@ -582,11 +582,11 @@ async fn run_download(
     let stdout = child
         .stdout
         .take()
-        .ok_or_else(|| ClipyError::Ytdlp("Failed to capture stdout".into()))?;
+        .ok_or_else(|| AcevidsError::Ytdlp("Failed to capture stdout".into()))?;
     let stderr = child
         .stderr
         .take()
-        .ok_or_else(|| ClipyError::Ytdlp("Failed to capture stderr".into()))?;
+        .ok_or_else(|| AcevidsError::Ytdlp("Failed to capture stderr".into()))?;
     let mut stdout_reader = BufReader::new(stdout).lines();
     let mut stderr_reader = BufReader::new(stderr).lines();
 
@@ -635,7 +635,7 @@ async fn run_download(
     let status = child
         .wait()
         .await
-        .map_err(|e| ClipyError::Ytdlp(format!("Failed to wait for yt-dlp: {}", e)))?;
+        .map_err(|e| AcevidsError::Ytdlp(format!("Failed to wait for yt-dlp: {}", e)))?;
 
     if let Some(registry) = crate::services::process_registry::get_registry() {
         registry.unregister(download_id).await;
@@ -644,7 +644,7 @@ async fn run_download(
     if !status.success() {
         let reason = tracker.failure_reason(status.code());
         error!("yt-dlp download failed: {}", reason);
-        return Err(ClipyError::Ytdlp(reason));
+        return Err(AcevidsError::Ytdlp(reason));
     }
 
     let _ = progress_tx
@@ -664,7 +664,7 @@ async fn run_download(
 /// directory: absolute paths, drive or UNC prefixes, and `..` components.
 fn check_relative_template(template: &str) -> Result<()> {
     let bad = |why: &str| {
-        Err(ClipyError::Ytdlp(format!(
+        Err(AcevidsError::Ytdlp(format!(
             "Invalid filename template ({why}): {template:?}"
         )))
     };
@@ -939,7 +939,7 @@ fn find_downloaded_file(output_dir: &str, captured_path: Option<&str>) -> Result
     // Fallback: scan directory for newest video/audio file
     let dir = std::path::Path::new(output_dir);
     if !dir.exists() {
-        return Err(ClipyError::Ytdlp(format!(
+        return Err(AcevidsError::Ytdlp(format!(
             "Output directory does not exist: {}",
             output_dir
         )));
@@ -977,7 +977,7 @@ fn find_downloaded_file(output_dir: &str, captured_path: Option<&str>) -> Result
 
     newest_file
         .map(|(path, _)| path)
-        .ok_or_else(|| ClipyError::Ytdlp("Could not find downloaded file".into()))
+        .ok_or_else(|| AcevidsError::Ytdlp("Could not find downloaded file".into()))
 }
 
 /// Get available qualities for a video
@@ -1543,7 +1543,7 @@ mod tests {
         )
         .await
         .unwrap_err();
-        assert!(matches!(err, ClipyError::Ytdlp(_)));
+        assert!(matches!(err, AcevidsError::Ytdlp(_)));
         assert!(
             fetch_video_info_with(Path::new("/definitely/missing/yt-dlp"), &[])
                 .await

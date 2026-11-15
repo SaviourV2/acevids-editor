@@ -3,7 +3,7 @@
 //! Each public `AppHandle` entry point resolves its directory and delegates to
 //! a directory-based function, which is what the tests exercise.
 
-use crate::error::{ClipyError, Result};
+use crate::error::{AcevidsError, Result};
 use crate::utils::paths;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -93,7 +93,7 @@ pub async fn clear_directory(path: &Path) -> Result<()> {
 
     let mut entries = fs::read_dir(path)
         .await
-        .map_err(|e| ClipyError::Other(format!("Failed to read directory: {}", e)))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to read directory: {}", e)))?;
 
     let mut removed_count = 0u32;
     while let Ok(Some(entry)) = entries.next_entry().await {
@@ -101,11 +101,11 @@ pub async fn clear_directory(path: &Path) -> Result<()> {
         if entry_path.is_dir() {
             fs::remove_dir_all(&entry_path)
                 .await
-                .map_err(|e| ClipyError::Other(format!("Failed to remove directory: {}", e)))?;
+                .map_err(|e| AcevidsError::Other(format!("Failed to remove directory: {}", e)))?;
         } else {
             fs::remove_file(&entry_path)
                 .await
-                .map_err(|e| ClipyError::Other(format!("Failed to remove file: {}", e)))?;
+                .map_err(|e| AcevidsError::Other(format!("Failed to remove file: {}", e)))?;
         }
         removed_count += 1;
     }
@@ -133,7 +133,7 @@ pub async fn cleanup_old_files(path: &Path, max_age: Duration) -> Result<u64> {
 
     let mut entries = fs::read_dir(path)
         .await
-        .map_err(|e| ClipyError::Other(format!("Failed to read directory: {}", e)))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to read directory: {}", e)))?;
 
     let now = SystemTime::now();
 
@@ -205,7 +205,7 @@ async fn collect_files_with_metadata(path: &Path) -> Result<Vec<(PathBuf, System
 
     let mut entries = fs::read_dir(path)
         .await
-        .map_err(|e| ClipyError::Other(format!("Failed to read directory: {}", e)))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to read directory: {}", e)))?;
 
     while let Ok(Some(entry)) = entries.next_entry().await {
         let entry_path = entry.path();
@@ -237,7 +237,7 @@ pub fn thumbnail_path_in(cache_dir: &Path, video_id: &str) -> Result<PathBuf> {
     let thumb_dir = cache_dir.join("thumbnails");
     if !thumb_dir.exists() {
         std::fs::create_dir_all(&thumb_dir)
-            .map_err(|e| ClipyError::Other(format!("Failed to create thumbnail dir: {}", e)))?;
+            .map_err(|e| AcevidsError::Other(format!("Failed to create thumbnail dir: {}", e)))?;
     }
     let name = paths::sanitize_filename(video_id).replace("..", "_");
     Ok(thumb_dir.join(format!("{}.jpg", name)))

@@ -75,16 +75,7 @@ export function GeneralTab({ settings, onUpdateSetting }: GeneralTabProps) {
         </SettingItem>
       </SettingGroup>
 
-      <SettingGroup title="Updates" description="Keep the app and tools up to date">
-        <SettingItem
-          label="Auto-check for updates"
-          description="Periodically check for new versions"
-        >
-          <Switch
-            checked={settings.general.checkForUpdates}
-            onCheckedChange={(v) => onUpdateSetting("general.checkForUpdates", v)}
-          />
-        </SettingItem>
+      <SettingGroup title="Updates" description="Keep the bundled tools up to date">
         <SettingItem
           label="Auto-update binaries"
           description="Automatically update FFmpeg and yt-dlp"

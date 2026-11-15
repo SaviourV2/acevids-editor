@@ -1,6 +1,6 @@
 //! Editor-related commands
 
-use crate::error::{ClipyError, Result};
+use crate::error::{AcevidsError, Result};
 use crate::media_protocol;
 use crate::models::project::{ExportProgress, ExportSettings, Project};
 use crate::services::ffmpeg::{self, VideoMetadata};
@@ -30,7 +30,7 @@ impl ExportSlot {
     fn claim(project_id: &str) -> Result<Self> {
         let mut active = ACTIVE_EXPORT.lock().unwrap_or_else(|e| e.into_inner());
         if active.is_some() {
-            return Err(ClipyError::ExportFailed(
+            return Err(AcevidsError::ExportFailed(
                 "An export is already in progress".into(),
             ));
         }
@@ -220,12 +220,12 @@ pub async fn save_project(project: Project, path: String) -> Result<()> {
     );
 
     let json = serde_json::to_string_pretty(&project)
-        .map_err(|e| ClipyError::Other(format!("Failed to serialize project: {}", e)))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to serialize project: {}", e)))?;
 
     debug!("Serialized project JSON: {} bytes", json.len());
 
     std::fs::write(&target, json)
-        .map_err(|e| ClipyError::Other(format!("Failed to write project file: {}", e)))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to write project file: {}", e)))?;
 
     debug!("Project saved successfully");
     Ok(())
@@ -247,24 +247,24 @@ pub async fn load_project(path: String) -> Result<Project> {
     Ok(project)
 }
 
-/// Read and parse a `.clipy`/`.json` project file, refusing other file types
+/// Read and parse a `.acevids`/`.json` project file, refusing other file types
 /// and oversized files.
 fn read_project_file(path: &str) -> Result<Project> {
     let file = path_policy::ensure_local_file(path, path_policy::PROJECT_EXTENSIONS)?;
     let len = std::fs::metadata(&file)
-        .map_err(|e| ClipyError::Other(format!("Failed to read project file: {}", e)))?
+        .map_err(|e| AcevidsError::Other(format!("Failed to read project file: {}", e)))?
         .len();
     if len > MAX_PROJECT_BYTES {
-        return Err(ClipyError::Other(format!(
+        return Err(AcevidsError::Other(format!(
             "Project file is too large ({} bytes)",
             len
         )));
     }
     let content = std::fs::read_to_string(&file)
-        .map_err(|e| ClipyError::Other(format!("Failed to read project file: {}", e)))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to read project file: {}", e)))?;
     debug!("Read project file: {} bytes", content.len());
     serde_json::from_str(&content)
-        .map_err(|e| ClipyError::Other(format!("Failed to parse project: {}", e)))
+        .map_err(|e| AcevidsError::Other(format!("Failed to parse project: {}", e)))
 }
 
 /// Let the preview player stream every media file a loaded project references.
@@ -490,7 +490,7 @@ mod tests {
         assert_eq!(get_export_status().await.as_deref(), Some("p1"));
         assert!(matches!(
             ExportSlot::claim("p2"),
-            Err(ClipyError::ExportFailed(_))
+            Err(AcevidsError::ExportFailed(_))
         ));
         // Cancelling signals ffmpeg but must NOT free the slot: only the
         // running export may release it once ffmpeg has exited.
@@ -523,7 +523,7 @@ mod tests {
             thumbnails: Vec::new(),
             properties: Default::default(),
         });
-        let path = dir.path().join("demo.clipy");
+        let path = dir.path().join("demo.acevids");
         save_project(project.clone(), s(&path)).await.unwrap();
         let loaded = load_project(s(&path)).await.unwrap();
         assert_eq!(loaded.id, project.id);
@@ -546,7 +546,7 @@ mod tests {
         let secret = dir.path().join("id_rsa");
         fs::write(&secret, b"KEY").unwrap();
         assert!(load_project(s(&secret)).await.is_err());
-        assert!(load_project("https://evil/p.clipy".into()).await.is_err());
+        assert!(load_project("https://evil/p.acevids".into()).await.is_err());
 
         let broken = dir.path().join("broken.json");
         fs::write(&broken, b"{not json").unwrap();
@@ -556,7 +556,7 @@ mod tests {
     #[test]
     fn load_rejects_oversized_project() {
         let dir = tempfile::tempdir().unwrap();
-        let big = dir.path().join("big.clipy");
+        let big = dir.path().join("big.acevids");
         let f = fs::File::create(&big).unwrap();
         f.set_len(MAX_PROJECT_BYTES + 1).unwrap();
         drop(f);

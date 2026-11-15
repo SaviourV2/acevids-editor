@@ -62,10 +62,10 @@ export function Sidebar() {
           <div className="flex items-center gap-3">
             <img
               src={isDark ? "/logo-dark.png" : "/logo-light.png"}
-              alt="Clipy"
+              alt="ACEVIDS"
               className="h-8 w-8 object-contain"
             />
-            {!collapsed && <span className="text-lg font-semibold tracking-tight">Clipy</span>}
+            {!collapsed && <span className="text-lg font-semibold tracking-tight">ACEVIDS</span>}
           </div>
         </div>
 

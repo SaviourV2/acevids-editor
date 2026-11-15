@@ -34,7 +34,6 @@ export interface GeneralSettings {
   launchOnStartup: boolean;
   minimizeToTray: boolean;
   closeToTray: boolean;
-  checkForUpdates: boolean;
   autoUpdateBinaries: boolean;
 }
 

@@ -20,6 +20,6 @@ describe("useThemeStore", () => {
 
   it("persists the theme for first paint", () => {
     useThemeStore.getState().setTheme("dark");
-    expect(JSON.parse(localStorage.getItem("clipy-theme") ?? "{}").state.theme).toBe("dark");
+    expect(JSON.parse(localStorage.getItem("acevids-theme") ?? "{}").state.theme).toBe("dark");
   });
 });

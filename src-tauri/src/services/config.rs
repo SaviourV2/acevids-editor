@@ -9,7 +9,7 @@
 //! - Process-wide accessors (`init_config`, `get_settings`, ...) as thin
 //!   wrappers over one installed store.
 
-use crate::error::{ClipyError, Result};
+use crate::error::{AcevidsError, Result};
 use crate::models::settings::AppSettings;
 use crate::utils::paths;
 use std::fs;
@@ -37,7 +37,7 @@ impl ConfigStore {
         let settings = if path.exists() {
             debug!("Loading existing config from {:?}", path);
             let content = fs::read_to_string(&path)
-                .map_err(|e| ClipyError::Config(format!("Failed to read config: {}", e)))?;
+                .map_err(|e| AcevidsError::Config(format!("Failed to read config: {}", e)))?;
             match serde_json::from_str::<AppSettings>(&content) {
                 Ok(settings) => settings,
                 Err(e) => {
@@ -100,15 +100,15 @@ fn backup_corrupt_file(path: &Path) -> Result<PathBuf> {
     name.push(format!(".bak-{}", stamp));
     let backup = path.with_file_name(name);
     fs::rename(path, &backup)
-        .map_err(|e| ClipyError::Config(format!("Failed to back up corrupt config: {}", e)))?;
+        .map_err(|e| AcevidsError::Config(format!("Failed to back up corrupt config: {}", e)))?;
     Ok(backup)
 }
 
 fn write_settings(path: &Path, settings: &AppSettings) -> Result<()> {
     let content = serde_json::to_string_pretty(settings)
-        .map_err(|e| ClipyError::Config(format!("Failed to serialize config: {}", e)))?;
+        .map_err(|e| AcevidsError::Config(format!("Failed to serialize config: {}", e)))?;
     write_atomic(path, content.as_bytes())
-        .map_err(|e| ClipyError::Config(format!("Failed to write config: {}", e)))?;
+        .map_err(|e| AcevidsError::Config(format!("Failed to write config: {}", e)))?;
     debug!("Config saved to {:?}", path);
     Ok(())
 }
@@ -153,7 +153,7 @@ pub fn store() -> Result<Arc<ConfigStore>> {
         .read()
         .unwrap_or_else(|e| e.into_inner())
         .clone()
-        .ok_or_else(|| ClipyError::Config("Config not initialized".into()))
+        .ok_or_else(|| AcevidsError::Config("Config not initialized".into()))
 }
 
 /// Get current settings

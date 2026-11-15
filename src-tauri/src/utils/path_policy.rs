@@ -12,7 +12,7 @@
 //! - Canonicalization (resolving `..` and symlinks) so checks apply to the
 //!   object that is actually opened.
 //! - Type restriction by extension: media inputs must be audio/video/image
-//!   files, project files must be `.clipy`/`.json`, exports must be media.
+//!   files, project files must be `.acevids`/`.json`, exports must be media.
 //!
 //! ## Why save targets are not restricted to fixed roots
 //!
@@ -30,7 +30,7 @@
 //! over SMB, leaking the user's NTLM hash to whoever controls it. Mapped drive
 //! letters still work, so users with network storage keep a supported path.
 
-use crate::error::{ClipyError, Result};
+use crate::error::{AcevidsError, Result};
 use std::path::{Component, Path, PathBuf};
 
 /// Video container extensions accepted as editor/library inputs.
@@ -48,7 +48,7 @@ pub const AUDIO_EXTENSIONS: &[&str] = &[
 pub const IMAGE_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp", "gif", "bmp"];
 
 /// Extensions a saved/loaded editor project may use.
-pub const PROJECT_EXTENSIONS: &[&str] = &["clipy", "json"];
+pub const PROJECT_EXTENSIONS: &[&str] = &["acevids", "json"];
 
 /// Extension for JSON exports (library export).
 pub const JSON_EXTENSIONS: &[&str] = &["json"];
@@ -94,7 +94,7 @@ pub fn is_editor_source_extension(path: &Path) -> bool {
 /// # Examples
 ///
 /// ```
-/// use clipy_lib::utils::path_policy::looks_like_url;
+/// use acevids_lib::utils::path_policy::looks_like_url;
 /// assert!(looks_like_url("https://example.com/a.mp4"));
 /// assert!(looks_like_url("concat:a.mp4|b.mp4"));
 /// assert!(!looks_like_url("C:\\Videos\\a.mp4"));
@@ -151,7 +151,7 @@ pub fn validate_raw_path(raw: &str) -> Result<PathBuf> {
 /// [`validate_raw_path`] with the Windows-specific rules toggled explicitly so
 /// both rule sets are testable on any host.
 fn validate_raw_path_for(raw: &str, windows_rules: bool) -> Result<PathBuf> {
-    let reject = |why: &str| Err(ClipyError::InvalidPath(format!("{why}: {raw:?}")));
+    let reject = |why: &str| Err(AcevidsError::InvalidPath(format!("{why}: {raw:?}")));
     if raw.trim().is_empty() {
         return reject("empty path");
     }
@@ -211,10 +211,10 @@ pub fn strip_verbatim_prefix(p: PathBuf) -> PathBuf {
 /// results that land on a UNC share.
 pub fn canonicalize(path: &Path) -> Result<PathBuf> {
     let canon = std::fs::canonicalize(path)
-        .map_err(|e| ClipyError::InvalidPath(format!("{}: {}", path.display(), e)))?;
+        .map_err(|e| AcevidsError::InvalidPath(format!("{}: {}", path.display(), e)))?;
     let canon = strip_verbatim_prefix(canon);
     if cfg!(windows) && is_unc_or_device_path(&canon.to_string_lossy()) {
-        return Err(ClipyError::InvalidPath(format!(
+        return Err(AcevidsError::InvalidPath(format!(
             "{} resolves to a network or device path",
             path.display()
         )));
@@ -246,7 +246,7 @@ fn ensure_file_where(raw: &str, type_ok: impl Fn(&Path) -> bool) -> Result<PathB
     // SECURITY: check the extension of the canonical path so a symlink named
     // `x.mp4` pointing at an executable or secret is rejected.
     if !type_ok(&canon) {
-        return Err(ClipyError::InvalidPath(format!(
+        return Err(AcevidsError::InvalidPath(format!(
             "unsupported file type: {raw}"
         )));
     }
@@ -257,7 +257,7 @@ fn ensure_file_where(raw: &str, type_ok: impl Fn(&Path) -> bool) -> Result<PathB
 fn ensure_existing_file(raw: &str) -> Result<PathBuf> {
     let canon = canonicalize(&validate_raw_path(raw)?)?;
     if !canon.is_file() {
-        return Err(ClipyError::InvalidPath(format!(
+        return Err(AcevidsError::InvalidPath(format!(
             "not a regular file: {raw}"
         )));
     }
@@ -268,7 +268,7 @@ fn ensure_existing_file(raw: &str) -> Result<PathBuf> {
 pub fn ensure_local_dir(raw: &str) -> Result<PathBuf> {
     let canon = canonicalize(&validate_raw_path(raw)?)?;
     if !canon.is_dir() {
-        return Err(ClipyError::InvalidPath(format!("not a directory: {raw}")));
+        return Err(AcevidsError::InvalidPath(format!("not a directory: {raw}")));
     }
     Ok(canon)
 }
@@ -284,23 +284,23 @@ pub fn ensure_output_path(raw: &str, allowed: &[&str]) -> Result<PathBuf> {
     let file_name = match path.components().next_back() {
         Some(Component::Normal(name)) => name.to_owned(),
         _ => {
-            return Err(ClipyError::InvalidPath(format!(
+            return Err(AcevidsError::InvalidPath(format!(
                 "output path has no file name: {raw}"
             )))
         }
     };
     if !has_extension(Path::new(&file_name), allowed) {
-        return Err(ClipyError::InvalidPath(format!(
+        return Err(AcevidsError::InvalidPath(format!(
             "output must be one of [{}]: {raw}",
             allowed.join(", ")
         )));
     }
     let parent = path
         .parent()
-        .ok_or_else(|| ClipyError::InvalidPath(format!("output path has no parent: {raw}")))?;
+        .ok_or_else(|| AcevidsError::InvalidPath(format!("output path has no parent: {raw}")))?;
     let parent = canonicalize(parent)?;
     if !parent.is_dir() {
-        return Err(ClipyError::InvalidPath(format!(
+        return Err(AcevidsError::InvalidPath(format!(
             "output directory does not exist: {}",
             parent.display()
         )));
@@ -308,13 +308,13 @@ pub fn ensure_output_path(raw: &str, allowed: &[&str]) -> Result<PathBuf> {
     let target = parent.join(&file_name);
     if let Ok(meta) = std::fs::symlink_metadata(&target) {
         if meta.file_type().is_symlink() {
-            return Err(ClipyError::InvalidPath(format!(
+            return Err(AcevidsError::InvalidPath(format!(
                 "refusing to write through a symlink: {}",
                 target.display()
             )));
         }
         if !meta.is_file() {
-            return Err(ClipyError::InvalidPath(format!(
+            return Err(AcevidsError::InvalidPath(format!(
                 "output exists and is not a regular file: {}",
                 target.display()
             )));
@@ -330,21 +330,21 @@ pub fn ensure_output_path(raw: &str, allowed: &[&str]) -> Result<PathBuf> {
 pub fn ensure_deletable_media_file(raw: &str) -> Result<PathBuf> {
     let path = validate_raw_path(raw)?;
     let meta = std::fs::symlink_metadata(&path)
-        .map_err(|e| ClipyError::InvalidPath(format!("{}: {}", path.display(), e)))?;
+        .map_err(|e| AcevidsError::InvalidPath(format!("{}: {}", path.display(), e)))?;
     if meta.file_type().is_symlink() {
-        return Err(ClipyError::InvalidPath(format!(
+        return Err(AcevidsError::InvalidPath(format!(
             "refusing to delete a symlink: {}",
             path.display()
         )));
     }
     if !meta.is_file() {
-        return Err(ClipyError::InvalidPath(format!(
+        return Err(AcevidsError::InvalidPath(format!(
             "refusing to delete a non-file: {}",
             path.display()
         )));
     }
     if !is_media_extension(&path) {
-        return Err(ClipyError::InvalidPath(format!(
+        return Err(AcevidsError::InvalidPath(format!(
             "refusing to delete a non-media file: {}",
             path.display()
         )));
@@ -389,10 +389,10 @@ mod tests {
         assert!(!is_editor_source_extension(Path::new("a.exe")));
         assert!(!is_editor_source_extension(Path::new("noext")));
         assert_eq!(
-            extension_lower(Path::new("x.Clipy")).as_deref(),
-            Some("clipy")
+            extension_lower(Path::new("x.Acevids")).as_deref(),
+            Some("acevids")
         );
-        assert!(has_extension(Path::new("p.CLIPY"), PROJECT_EXTENSIONS));
+        assert!(has_extension(Path::new("p.ACEVIDS"), PROJECT_EXTENSIONS));
         assert!(!has_extension(Path::new("p.lnk"), PROJECT_EXTENSIONS));
     }
 
@@ -611,10 +611,10 @@ mod tests {
 
         // `..` in the raw path is resolved through the canonical parent.
         fs::create_dir(dir.path().join("sub")).unwrap();
-        let dotted = dir.path().join("sub").join("..").join("p.clipy");
+        let dotted = dir.path().join("sub").join("..").join("p.acevids");
         assert_eq!(
             ensure_output_path(&s(&dotted), PROJECT_EXTENSIONS).unwrap(),
-            parent.join("p.clipy")
+            parent.join("p.acevids")
         );
 
         // Existing regular file may be overwritten.

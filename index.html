@@ -3,12 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Clipy - Open-source YouTube video downloader and editor" />
+    <meta name="description" content="ACEVIDS - Open-source YouTube video downloader and editor" />
     <meta name="theme-color" content="#0a0a0a" />
     <!--
       This CSP <meta> tag OVERRIDES the one in tauri.conf.json for the webview's
-      resource loading. It MUST allow the custom `clipy-media` scheme (both the
-      bare `clipy-media:` form used on macOS/Linux and the `http://clipy-media.localhost`
+      resource loading. It MUST allow the custom `acevids-media` scheme (both the
+      bare `acevids-media:` form used on macOS/Linux and the `http://acevids-media.localhost`
       form WebView2 uses on Windows) under BOTH `media-src` and `img-src`, or
       local video/audio/poster loads are rejected with
       "Media load rejected by URL safety check" (CSP falls back to default-src).
@@ -19,10 +19,10 @@
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: clipy-media: http://clipy-media.localhost https://clipy-media.localhost https:; media-src 'self' blob: clipy-media: http://clipy-media.localhost https://clipy-media.localhost; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'; form-action 'none'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: acevids-media: http://acevids-media.localhost https://acevids-media.localhost https:; media-src 'self' blob: acevids-media: http://acevids-media.localhost https://acevids-media.localhost; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'; form-action 'none'"
     />
     <link rel="icon" type="image/png" href="/icon.png" />
-    <title>Clipy</title>
+    <title>ACEVIDS</title>
   </head>
   <body>
     <div id="root"></div>

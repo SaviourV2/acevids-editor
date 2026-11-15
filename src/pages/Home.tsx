@@ -120,7 +120,7 @@ export function Home() {
           className="font-black leading-none tracking-tight text-foreground/[0.03]"
           style={{ fontSize: "clamp(8rem, 30vw, 24rem)" }}
         >
-          Clipy
+          ACEVIDS
         </span>
       </div>
 

@@ -28,8 +28,8 @@ function uniqueValues<T extends { value: string }>(arr: readonly T[]): boolean {
 }
 
 describe("app identity", () => {
-  it("APP_NAME is Clipy", () => {
-    expect(APP_NAME).toBe("Clipy");
+  it("APP_NAME is ACEVIDS", () => {
+    expect(APP_NAME).toBe("ACEVIDS");
   });
 
   it("APP_VERSION is semver-ish", () => {

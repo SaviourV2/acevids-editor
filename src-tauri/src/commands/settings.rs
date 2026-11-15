@@ -6,7 +6,7 @@
 //! new fields are supported automatically and type mismatches are rejected by
 //! serde instead of being silently coerced.
 
-use crate::error::{ClipyError, Result};
+use crate::error::{AcevidsError, Result};
 use crate::models::settings::AppSettings;
 use crate::services::{config, queue};
 use crate::utils::logger::redact_url;
@@ -64,14 +64,14 @@ pub async fn update_setting(key: String, value: Value) -> Result<()> {
 #[tauri::command]
 pub fn get_setting(key: String) -> Result<Value> {
     read_setting(&config::get_settings()?, &key)
-        .ok_or_else(|| ClipyError::Config(format!("Unknown setting: {}", key)))
+        .ok_or_else(|| AcevidsError::Config(format!("Unknown setting: {}", key)))
 }
 
 /// Export settings to JSON
 #[tauri::command]
 pub fn export_settings() -> Result<String> {
     serde_json::to_string_pretty(&config::get_settings()?)
-        .map_err(|e| ClipyError::Config(format!("Failed to serialize settings: {}", e)))
+        .map_err(|e| AcevidsError::Config(format!("Failed to serialize settings: {}", e)))
 }
 
 /// Import settings from JSON
@@ -79,7 +79,7 @@ pub fn export_settings() -> Result<String> {
 pub async fn import_settings(json: String) -> Result<()> {
     info!("Importing settings from JSON ({} bytes)", json.len());
     let settings: AppSettings = serde_json::from_str(&json)
-        .map_err(|e| ClipyError::Config(format!("Failed to parse settings: {}", e)))?;
+        .map_err(|e| AcevidsError::Config(format!("Failed to parse settings: {}", e)))?;
     update_settings(settings).await
 }
 
@@ -113,8 +113,8 @@ fn split_key(key: &str) -> Option<(&str, &str)> {
 ///
 /// # Example
 /// ```
-/// use clipy_lib::commands::settings::read_setting;
-/// use clipy_lib::models::settings::AppSettings;
+/// use acevids_lib::commands::settings::read_setting;
+/// use acevids_lib::models::settings::AppSettings;
 /// let s = AppSettings::default();
 /// assert_eq!(read_setting(&s, "general.language"), Some("en".into()));
 /// assert_eq!(read_setting(&s, "general.nope"), None);
@@ -131,7 +131,7 @@ pub fn read_setting(settings: &AppSettings, key: &str) -> Option<Value> {
 /// field (e.g. a string for a bool, a negative or fractional number for an
 /// integer, or an out-of-range integer) — `settings` is untouched on error.
 pub fn apply_setting(settings: &mut AppSettings, key: &str, value: &Value) -> Result<()> {
-    let unknown = || ClipyError::Config(format!("Unknown setting: {}", key));
+    let unknown = || AcevidsError::Config(format!("Unknown setting: {}", key));
     let (section, field) = split_key(key).ok_or_else(unknown)?;
     let mut json = serde_json::to_value(&*settings)?;
     let slot = json
@@ -140,7 +140,7 @@ pub fn apply_setting(settings: &mut AppSettings, key: &str, value: &Value) -> Re
         .ok_or_else(unknown)?;
     *slot = value.clone();
     *settings = serde_json::from_value(json)
-        .map_err(|e| ClipyError::Config(format!("Invalid value for {}: {}", key, e)))?;
+        .map_err(|e| AcevidsError::Config(format!("Invalid value for {}: {}", key, e)))?;
     Ok(())
 }
 

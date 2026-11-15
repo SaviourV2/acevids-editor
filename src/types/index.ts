@@ -1,5 +1,5 @@
 /**
- * Core type definitions for Clipy
+ * Core type definitions for ACEVIDS
  */
 
 // Re-export all types

@@ -23,7 +23,7 @@ describe("uiStore", () => {
   it("persists only the onboarding flag and sidebar state", () => {
     useUIStore.getState().completeOnboarding();
     useUIStore.getState().setSidebarCollapsed(true);
-    const saved = JSON.parse(localStorage.getItem("clipy-ui-storage") ?? "{}");
+    const saved = JSON.parse(localStorage.getItem("acevids-ui-storage") ?? "{}");
     expect(saved.state).toEqual({ isFirstRun: false, sidebarCollapsed: true });
   });
 });

@@ -1,4 +1,4 @@
-//! Backend services for Clipy
+//! Backend services for ACEVIDS
 
 pub mod binary;
 pub mod cache;

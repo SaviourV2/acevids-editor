@@ -1,6 +1,6 @@
-//! Clipy - YouTube Video Downloader and Editor
+//! ACEVIDS - YouTube Video Downloader and Editor
 //!
-//! This is the main library for the Clipy Tauri application.
+//! This is the main library for the ACEVIDS Tauri application.
 //! It provides all the backend functionality for downloading and editing videos.
 //!
 //! Lifecycle responsibilities owned here:
@@ -145,7 +145,7 @@ fn setup<R: Runtime>(app: &AppHandle<R>) -> std::result::Result<(), Box<dyn std:
         }
     }
 
-    info!("Clipy initialized successfully");
+    info!("ACEVIDS initialized successfully");
     Ok(())
 }
 
@@ -160,7 +160,7 @@ fn spawn_binary_check<R: Runtime>(app: AppHandle<R>) -> tauri::async_runtime::Jo
     })
 }
 
-/// Keep Clipy's own yt-dlp current in the background (at most daily).
+/// Keep ACEVIDS's own yt-dlp current in the background (at most daily).
 ///
 /// NOTE: sites change constantly and an old yt-dlp is the most common cause
 /// of failed downloads, so this honours `general.autoUpdateBinaries`.
@@ -295,15 +295,11 @@ pub fn run() {
     let debug_mode = utils::logger::read_debug_mode_from_config();
     utils::logger::init_logging(debug_mode);
     utils::logger::print_banner(env!("CARGO_PKG_VERSION"), debug_mode);
-    info!("Starting Clipy v{}", env!("CARGO_PKG_VERSION"));
+    info!("Starting ACEVIDS v{}", env!("CARGO_PKG_VERSION"));
 
     let app = app_builder(tauri::Builder::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
-        // Updates are minisign-verified against the pubkey in tauri.conf.json;
-        // the process plugin relaunches into the new version.
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
@@ -552,7 +548,8 @@ pub(crate) mod test_support {
 
         #[cfg(not(windows))]
         let (path, body) = {
-            let mut body = String::from("#!/bin/sh\n[ -n \"$CLIPY_FAKE_TOOL_PROBE\" ] && exit 0\n");
+            let mut body =
+                String::from("#!/bin/sh\n[ -n \"$ACEVIDS_FAKE_TOOL_PROBE\" ] && exit 0\n");
             if script.sleep_secs > 0 {
                 body += &format!("sleep {}\n", script.sleep_secs);
             }
@@ -585,7 +582,7 @@ pub(crate) mod test_support {
     fn wait_until_executable(path: &std::path::Path) {
         for _ in 0..200 {
             match std::process::Command::new(path)
-                .env("CLIPY_FAKE_TOOL_PROBE", "1")
+                .env("ACEVIDS_FAKE_TOOL_PROBE", "1")
                 .status()
             {
                 Ok(_) => return,
@@ -682,7 +679,7 @@ mod tests {
         settings.general.minimize_to_tray = true;
         services::config::update_settings(settings).unwrap();
         setup(app.handle()).unwrap();
-        log_binary_status(&Err(error::ClipyError::Other("probe failed".into())));
+        log_binary_status(&Err(error::AcevidsError::Other("probe failed".into())));
         log_binary_status(&Ok(models::settings::BinaryStatus {
             ffmpeg_installed: true,
             ytdlp_installed: true,
@@ -872,7 +869,7 @@ mod tests {
                 json!({"project": project, "path": "p.txt"}),
                 false,
             ),
-            ("load_project", json!({"path": "p.clipy"}), false),
+            ("load_project", json!({"path": "p.acevids"}), false),
             (
                 "transcode_for_editing",
                 json!({"inputPath": "x.mp4", "outputPath": "y.mp4"}),

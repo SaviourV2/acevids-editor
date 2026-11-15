@@ -8,7 +8,7 @@
 //! - Process-wide accessors (`init_database`, `add_library_video`, ...) kept as
 //!   thin wrappers so existing command call sites stay unchanged.
 
-use crate::error::{ClipyError, Result};
+use crate::error::{AcevidsError, Result};
 use crate::models::library::LibraryVideo;
 use crate::utils::paths;
 use rusqlite::{params, Connection, Row};
@@ -87,7 +87,7 @@ impl Database {
     /// Open (creating if needed) the database file at `path` and migrate it.
     pub fn open(path: &Path) -> Result<Self> {
         let conn = Connection::open(path)
-            .map_err(|e| ClipyError::Other(format!("Failed to open database: {}", e)))?;
+            .map_err(|e| AcevidsError::Other(format!("Failed to open database: {}", e)))?;
         Self::from_connection(conn)
     }
 
@@ -107,7 +107,7 @@ impl Database {
     fn conn(&self) -> Result<MutexGuard<'_, Connection>> {
         self.conn
             .lock()
-            .map_err(|_| ClipyError::Other("Database lock poisoned".into()))
+            .map_err(|_| AcevidsError::Other("Database lock poisoned".into()))
     }
 
     /// Current `PRAGMA user_version`.
@@ -139,7 +139,7 @@ impl Database {
                     video.source_url,
                 ],
             )
-            .map_err(|e| ClipyError::Other(format!("Failed to insert video: {}", e)))?;
+            .map_err(|e| AcevidsError::Other(format!("Failed to insert video: {}", e)))?;
         debug!("Added video to library: {}", video.title);
         Ok(())
     }
@@ -149,10 +149,10 @@ impl Database {
         let conn = self.conn()?;
         let mut stmt = conn
             .prepare(&format!("{SELECT_COLUMNS} ORDER BY downloaded_at DESC"))
-            .map_err(|e| ClipyError::Other(format!("Failed to prepare query: {}", e)))?;
+            .map_err(|e| AcevidsError::Other(format!("Failed to prepare query: {}", e)))?;
         let rows = stmt
             .query_map([], row_to_video)
-            .map_err(|e| ClipyError::Other(format!("Failed to query videos: {}", e)))?;
+            .map_err(|e| AcevidsError::Other(format!("Failed to query videos: {}", e)))?;
         collect_rows(rows)
     }
 
@@ -160,7 +160,7 @@ impl Database {
     pub fn delete_library_video(&self, id: &str) -> Result<()> {
         self.conn()?
             .execute("DELETE FROM library_videos WHERE id = ?1", params![id])
-            .map_err(|e| ClipyError::Other(format!("Failed to delete video: {}", e)))?;
+            .map_err(|e| AcevidsError::Other(format!("Failed to delete video: {}", e)))?;
         debug!("Deleted video from library: {}", id);
         Ok(())
     }
@@ -177,10 +177,10 @@ impl Database {
                  WHERE title LIKE ?1 ESCAPE '\\' OR channel LIKE ?1 ESCAPE '\\'
                  ORDER BY downloaded_at DESC"
             ))
-            .map_err(|e| ClipyError::Other(format!("Failed to prepare query: {}", e)))?;
+            .map_err(|e| AcevidsError::Other(format!("Failed to prepare query: {}", e)))?;
         let rows = stmt
             .query_map(params![pattern], row_to_video)
-            .map_err(|e| ClipyError::Other(format!("Failed to query videos: {}", e)))?;
+            .map_err(|e| AcevidsError::Other(format!("Failed to query videos: {}", e)))?;
         collect_rows(rows)
     }
 
@@ -219,7 +219,7 @@ fn row_to_video(row: &Row<'_>) -> rusqlite::Result<LibraryVideo> {
 fn collect_rows(
     rows: impl Iterator<Item = rusqlite::Result<LibraryVideo>>,
 ) -> Result<Vec<LibraryVideo>> {
-    rows.map(|r| r.map_err(|e| ClipyError::Other(format!("Failed to read video: {}", e))))
+    rows.map(|r| r.map_err(|e| AcevidsError::Other(format!("Failed to read video: {}", e))))
         .collect()
 }
 
@@ -227,7 +227,7 @@ fn collect_rows(
 ///
 /// # Example
 /// ```
-/// use clipy_lib::services::database::escape_like;
+/// use acevids_lib::services::database::escape_like;
 /// assert_eq!(escape_like("100%_off"), "100\\%\\_off");
 /// ```
 pub fn escape_like(s: &str) -> String {
@@ -292,7 +292,7 @@ pub fn global() -> Result<Arc<Database>> {
         .read()
         .unwrap_or_else(|e| e.into_inner())
         .clone()
-        .ok_or_else(|| ClipyError::Other("Database not initialized".into()))
+        .ok_or_else(|| AcevidsError::Other("Database not initialized".into()))
 }
 
 /// Add a video to the global library. See [`Database::add_library_video`].

@@ -1,6 +1,6 @@
-# Contributing to Clipy
+# Contributing to ACEVIDS
 
-First off, thank you for considering contributing to Clipy! It's people like you that make Clipy such a great tool.
+First off, thank you for considering contributing to ACEVIDS! It's people like you that make ACEVIDS such a great tool.
 
 ## Code of Conduct
 
@@ -24,7 +24,7 @@ Before creating bug reports, please check the issue list as you might find out t
 - **Describe the behavior you observed after following the steps**
 - **Explain which behavior you expected to see instead and why**
 - **Include screenshots and animated GIFs if possible**
-- **Include your OS version and Clipy version**
+- **Include your OS version and ACEVIDS version**
 
 ### Suggesting Enhancements
 
@@ -60,8 +60,8 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 
 ```bash
 # Clone your fork
-git clone https://github.com/YOUR_USERNAME/clipy.git
-cd clipy
+git clone https://github.com/YOUR_USERNAME/acevids-editor.git
+cd acevids-editor
 
 # Install dependencies
 pnpm install
@@ -73,10 +73,9 @@ pnpm tauri dev
 ### Project Structure
 
 ```
-clipy/
+acevids-editor/
 ├── src/                          # React frontend
 │   ├── components/               # UI components
-│   │   ├── dialogs/              # App update dialog
 │   │   ├── downloads/            # Download management
 │   │   ├── editor/               # Video editor
 │   │   ├── home/                 # Home page

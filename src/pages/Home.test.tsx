@@ -138,7 +138,7 @@ describe("Home page", () => {
       quality: "720",
       format: "mkv",
       audioOnly: false,
-      outputPath: "C:\\Users\\me\\Videos\\Clipy",
+      outputPath: "C:\\Users\\me\\Videos\\ACEVIDS",
       rateLimit: "1M",
       cookiesFromBrowser: "firefox",
       playlistItems: "1,3",

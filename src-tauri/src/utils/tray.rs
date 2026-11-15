@@ -8,7 +8,7 @@ use tauri::{
 };
 use tracing::info;
 
-const DEFAULT_TOOLTIP: &str = "Clipy - Video Downloader & Editor";
+const DEFAULT_TOOLTIP: &str = "ACEVIDS - Video Downloader & Editor";
 
 /// Setup the system tray.
 ///
@@ -59,11 +59,11 @@ fn handle_tray_icon_event<R: Runtime>(app: &AppHandle<R>, event: &TrayIconEvent)
 
 /// Build the tray context menu
 fn build_tray_menu<R: Runtime>(app: &AppHandle<R>) -> Result<Menu<R>, tauri::Error> {
-    let show = MenuItem::with_id(app, "show", "Show Clipy", true, None::<&str>)?;
+    let show = MenuItem::with_id(app, "show", "Show ACEVIDS", true, None::<&str>)?;
     let downloads = MenuItem::with_id(app, "downloads", "Downloads", true, None::<&str>)?;
     let library = MenuItem::with_id(app, "library", "Library", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Clipy", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit ACEVIDS", true, None::<&str>)?;
 
     Menu::with_items(
         app,
@@ -134,7 +134,7 @@ fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
 /// Tray tooltip for a number of active downloads.
 pub fn tooltip_for(active_downloads: u32) -> String {
     if active_downloads > 0 {
-        format!("Clipy - {} download(s) in progress", active_downloads)
+        format!("ACEVIDS - {} download(s) in progress", active_downloads)
     } else {
         DEFAULT_TOOLTIP.to_string()
     }
@@ -176,7 +176,7 @@ mod tests {
     #[test]
     fn tooltip_reflects_download_count() {
         assert_eq!(tooltip_for(0), DEFAULT_TOOLTIP);
-        assert_eq!(tooltip_for(2), "Clipy - 2 download(s) in progress");
+        assert_eq!(tooltip_for(2), "ACEVIDS - 2 download(s) in progress");
     }
 
     #[test]

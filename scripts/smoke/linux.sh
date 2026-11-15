@@ -2,7 +2,7 @@
 # Installer smoke test for Linux bundles (deb + AppImage; rpm is inspected only,
 # since the runner is Debian-based).
 #
-# Each bundle is launched with CLIPY_SMOKE_TEST=1 under a virtual display; the
+# Each bundle is launched with ACEVIDS_SMOKE_TEST=1 under a virtual display; the
 # app exits 0 once the frontend has booted and reported ready.
 #
 # Usage: scripts/smoke/linux.sh <bundle-dir>
@@ -13,7 +13,7 @@ TIMEOUT="${SMOKE_TIMEOUT:-120}"
 
 smoke_launch() {
   echo "Launching $* in smoke mode"
-  CLIPY_SMOKE_TEST=1 timeout "$TIMEOUT" xvfb-run -a "$@"
+  ACEVIDS_SMOKE_TEST=1 timeout "$TIMEOUT" xvfb-run -a "$@"
   echo "Smoke launch OK"
 }
 
@@ -22,11 +22,11 @@ DEB="$(realpath "$(ls "$BUNDLE_DIR"/deb/*.deb | head -n1)")"
 echo "deb: $DEB"
 # apt treats a bare relative path as a package name, so DEB is absolute.
 sudo apt-get install -y "$DEB"
-BIN="$(dpkg -L clipy | grep -E '^/usr/bin/' | head -n1)"
+BIN="$(dpkg -L acevids | grep -E '^/usr/bin/' | head -n1)"
 test -x "$BIN" || { echo "binary missing after install"; exit 1; }
-dpkg -L clipy | grep -q '\.desktop$' || { echo "desktop entry missing"; exit 1; }
+dpkg -L acevids | grep -q '\.desktop$' || { echo "desktop entry missing"; exit 1; }
 smoke_launch "$BIN"
-sudo apt-get remove -y clipy
+sudo apt-get remove -y acevids
 test ! -e "$BIN" || { echo "binary still present after removal"; exit 1; }
 
 # --- AppImage ----------------------------------------------------------------

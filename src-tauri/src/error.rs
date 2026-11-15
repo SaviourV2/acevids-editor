@@ -1,4 +1,4 @@
-//! Error types for Clipy
+//! Error types for ACEVIDS
 //!
 //! This module defines all error types used throughout the application and the
 //! `{ code, message }` wire shape Tauri commands send to the frontend.
@@ -8,7 +8,7 @@ use thiserror::Error;
 
 /// Application-wide error type
 #[derive(Error, Debug)]
-pub enum ClipyError {
+pub enum AcevidsError {
     /// Filesystem or other I/O failure.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
@@ -57,7 +57,7 @@ pub enum ClipyError {
     #[error("Process error: {0}")]
     ProcessError(String),
 
-    /// Legacy configuration error variant; prefer [`ClipyError::Config`].
+    /// Legacy configuration error variant; prefer [`AcevidsError::Config`].
     #[error("Config error: {0}")]
     ConfigError(String),
 
@@ -106,7 +106,7 @@ pub enum ClipyError {
     Config(String),
 }
 
-impl ClipyError {
+impl AcevidsError {
     /// Stable machine-readable code for this error.
     ///
     /// The frontend matches on these strings, so they must never change for an
@@ -114,35 +114,35 @@ impl ClipyError {
     ///
     /// # Example
     /// ```
-    /// use clipy_lib::error::ClipyError;
-    /// assert_eq!(ClipyError::Cancelled.code(), "CANCELLED");
+    /// use acevids_lib::error::AcevidsError;
+    /// assert_eq!(AcevidsError::Cancelled.code(), "CANCELLED");
     /// ```
     pub fn code(&self) -> &'static str {
         match self {
-            ClipyError::Io(_) => "IO_ERROR",
-            ClipyError::Database(_) => "DATABASE_ERROR",
-            ClipyError::Json(_) => "JSON_ERROR",
-            ClipyError::Http(_) => "HTTP_ERROR",
-            ClipyError::UrlParse(_) => "URL_PARSE_ERROR",
-            ClipyError::InvalidYouTubeUrl(_) => "INVALID_YOUTUBE_URL",
-            ClipyError::VideoNotFound(_) => "VIDEO_NOT_FOUND",
-            ClipyError::DownloadFailed(_) => "DOWNLOAD_FAILED",
-            ClipyError::ExportFailed(_) => "EXPORT_FAILED",
-            ClipyError::BinaryNotFound(_) => "BINARY_NOT_FOUND",
-            ClipyError::BinaryExecutionFailed(_) => "BINARY_EXECUTION_FAILED",
-            ClipyError::ProcessError(_) => "PROCESS_ERROR",
-            ClipyError::ConfigError(_) => "CONFIG_ERROR",
-            ClipyError::ProjectNotFound(_) => "PROJECT_NOT_FOUND",
-            ClipyError::InvalidPath(_) => "INVALID_PATH",
-            ClipyError::PermissionDenied(_) => "PERMISSION_DENIED",
-            ClipyError::Cancelled => "CANCELLED",
-            ClipyError::Tauri(_) => "TAURI_ERROR",
-            ClipyError::Other(_) => "UNKNOWN_ERROR",
-            ClipyError::FFmpeg(_) => "FFMPEG_ERROR",
-            ClipyError::Ytdlp(_) => "YTDLP_ERROR",
-            ClipyError::Download(_) => "DOWNLOAD_ERROR",
-            ClipyError::Library(_) => "LIBRARY_ERROR",
-            ClipyError::Config(_) => "CONFIG_ERROR",
+            AcevidsError::Io(_) => "IO_ERROR",
+            AcevidsError::Database(_) => "DATABASE_ERROR",
+            AcevidsError::Json(_) => "JSON_ERROR",
+            AcevidsError::Http(_) => "HTTP_ERROR",
+            AcevidsError::UrlParse(_) => "URL_PARSE_ERROR",
+            AcevidsError::InvalidYouTubeUrl(_) => "INVALID_YOUTUBE_URL",
+            AcevidsError::VideoNotFound(_) => "VIDEO_NOT_FOUND",
+            AcevidsError::DownloadFailed(_) => "DOWNLOAD_FAILED",
+            AcevidsError::ExportFailed(_) => "EXPORT_FAILED",
+            AcevidsError::BinaryNotFound(_) => "BINARY_NOT_FOUND",
+            AcevidsError::BinaryExecutionFailed(_) => "BINARY_EXECUTION_FAILED",
+            AcevidsError::ProcessError(_) => "PROCESS_ERROR",
+            AcevidsError::ConfigError(_) => "CONFIG_ERROR",
+            AcevidsError::ProjectNotFound(_) => "PROJECT_NOT_FOUND",
+            AcevidsError::InvalidPath(_) => "INVALID_PATH",
+            AcevidsError::PermissionDenied(_) => "PERMISSION_DENIED",
+            AcevidsError::Cancelled => "CANCELLED",
+            AcevidsError::Tauri(_) => "TAURI_ERROR",
+            AcevidsError::Other(_) => "UNKNOWN_ERROR",
+            AcevidsError::FFmpeg(_) => "FFMPEG_ERROR",
+            AcevidsError::Ytdlp(_) => "YTDLP_ERROR",
+            AcevidsError::Download(_) => "DOWNLOAD_ERROR",
+            AcevidsError::Library(_) => "LIBRARY_ERROR",
+            AcevidsError::Config(_) => "CONFIG_ERROR",
         }
     }
 }
@@ -150,14 +150,14 @@ impl ClipyError {
 /// Serializable error for frontend
 #[derive(Serialize, Debug)]
 pub struct ErrorResponse {
-    /// Stable machine-readable code, see [`ClipyError::code`].
+    /// Stable machine-readable code, see [`AcevidsError::code`].
     pub code: String,
     /// Human-readable message, identical to the error's `Display` output.
     pub message: String,
 }
 
-impl From<&ClipyError> for ErrorResponse {
-    fn from(error: &ClipyError) -> Self {
+impl From<&AcevidsError> for ErrorResponse {
+    fn from(error: &AcevidsError) -> Self {
         ErrorResponse {
             code: error.code().to_string(),
             message: error.to_string(),
@@ -165,15 +165,15 @@ impl From<&ClipyError> for ErrorResponse {
     }
 }
 
-impl From<ClipyError> for ErrorResponse {
-    fn from(error: ClipyError) -> Self {
+impl From<AcevidsError> for ErrorResponse {
+    fn from(error: AcevidsError) -> Self {
         ErrorResponse::from(&error)
     }
 }
 
 // Tauri commands serialize their error type straight to the frontend, so the
 // wire shape is the `{ code, message }` object rather than a bare string.
-impl Serialize for ClipyError {
+impl Serialize for AcevidsError {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -182,12 +182,12 @@ impl Serialize for ClipyError {
     }
 }
 
-/// Result type alias for Clipy operations
-pub type Result<T> = std::result::Result<T, ClipyError>;
+/// Result type alias for ACEVIDS operations
+pub type Result<T> = std::result::Result<T, AcevidsError>;
 
-impl From<anyhow::Error> for ClipyError {
+impl From<anyhow::Error> for AcevidsError {
     fn from(error: anyhow::Error) -> Self {
-        ClipyError::Other(error.to_string())
+        AcevidsError::Other(error.to_string())
     }
 }
 
@@ -195,7 +195,7 @@ impl From<anyhow::Error> for ClipyError {
 mod tests {
     use super::*;
 
-    fn every_variant() -> Vec<(ClipyError, &'static str)> {
+    fn every_variant() -> Vec<(AcevidsError, &'static str)> {
         let io = std::io::Error::new(std::io::ErrorKind::NotFound, "missing");
         let json = serde_json::from_str::<i32>("not json").unwrap_err();
         let url = url::Url::parse("").unwrap_err();
@@ -204,45 +204,48 @@ mod tests {
             .build()
             .unwrap_err();
         vec![
-            (ClipyError::Io(io), "IO_ERROR"),
+            (AcevidsError::Io(io), "IO_ERROR"),
             (
-                ClipyError::Database(rusqlite::Error::QueryReturnedNoRows),
+                AcevidsError::Database(rusqlite::Error::QueryReturnedNoRows),
                 "DATABASE_ERROR",
             ),
-            (ClipyError::Json(json), "JSON_ERROR"),
-            (ClipyError::Http(http), "HTTP_ERROR"),
-            (ClipyError::UrlParse(url), "URL_PARSE_ERROR"),
+            (AcevidsError::Json(json), "JSON_ERROR"),
+            (AcevidsError::Http(http), "HTTP_ERROR"),
+            (AcevidsError::UrlParse(url), "URL_PARSE_ERROR"),
             (
-                ClipyError::InvalidYouTubeUrl("u".into()),
+                AcevidsError::InvalidYouTubeUrl("u".into()),
                 "INVALID_YOUTUBE_URL",
             ),
-            (ClipyError::VideoNotFound("v".into()), "VIDEO_NOT_FOUND"),
-            (ClipyError::DownloadFailed("d".into()), "DOWNLOAD_FAILED"),
-            (ClipyError::ExportFailed("e".into()), "EXPORT_FAILED"),
-            (ClipyError::BinaryNotFound("b".into()), "BINARY_NOT_FOUND"),
+            (AcevidsError::VideoNotFound("v".into()), "VIDEO_NOT_FOUND"),
+            (AcevidsError::DownloadFailed("d".into()), "DOWNLOAD_FAILED"),
+            (AcevidsError::ExportFailed("e".into()), "EXPORT_FAILED"),
+            (AcevidsError::BinaryNotFound("b".into()), "BINARY_NOT_FOUND"),
             (
-                ClipyError::BinaryExecutionFailed("b".into()),
+                AcevidsError::BinaryExecutionFailed("b".into()),
                 "BINARY_EXECUTION_FAILED",
             ),
-            (ClipyError::ProcessError("p".into()), "PROCESS_ERROR"),
-            (ClipyError::ConfigError("c".into()), "CONFIG_ERROR"),
-            (ClipyError::ProjectNotFound("p".into()), "PROJECT_NOT_FOUND"),
-            (ClipyError::InvalidPath("p".into()), "INVALID_PATH"),
+            (AcevidsError::ProcessError("p".into()), "PROCESS_ERROR"),
+            (AcevidsError::ConfigError("c".into()), "CONFIG_ERROR"),
             (
-                ClipyError::PermissionDenied("p".into()),
+                AcevidsError::ProjectNotFound("p".into()),
+                "PROJECT_NOT_FOUND",
+            ),
+            (AcevidsError::InvalidPath("p".into()), "INVALID_PATH"),
+            (
+                AcevidsError::PermissionDenied("p".into()),
                 "PERMISSION_DENIED",
             ),
-            (ClipyError::Cancelled, "CANCELLED"),
+            (AcevidsError::Cancelled, "CANCELLED"),
             (
-                ClipyError::Tauri(tauri::Error::WindowNotFound),
+                AcevidsError::Tauri(tauri::Error::WindowNotFound),
                 "TAURI_ERROR",
             ),
-            (ClipyError::Other("o".into()), "UNKNOWN_ERROR"),
-            (ClipyError::FFmpeg("f".into()), "FFMPEG_ERROR"),
-            (ClipyError::Ytdlp("y".into()), "YTDLP_ERROR"),
-            (ClipyError::Download("d".into()), "DOWNLOAD_ERROR"),
-            (ClipyError::Library("l".into()), "LIBRARY_ERROR"),
-            (ClipyError::Config("c".into()), "CONFIG_ERROR"),
+            (AcevidsError::Other("o".into()), "UNKNOWN_ERROR"),
+            (AcevidsError::FFmpeg("f".into()), "FFMPEG_ERROR"),
+            (AcevidsError::Ytdlp("y".into()), "YTDLP_ERROR"),
+            (AcevidsError::Download("d".into()), "DOWNLOAD_ERROR"),
+            (AcevidsError::Library("l".into()), "LIBRARY_ERROR"),
+            (AcevidsError::Config("c".into()), "CONFIG_ERROR"),
         ]
     }
 
@@ -269,27 +272,27 @@ mod tests {
 
     #[test]
     fn display_messages_include_context() {
-        assert_eq!(ClipyError::Cancelled.to_string(), "Cancelled by user");
-        assert_eq!(ClipyError::Other("raw".into()).to_string(), "raw");
+        assert_eq!(AcevidsError::Cancelled.to_string(), "Cancelled by user");
+        assert_eq!(AcevidsError::Other("raw".into()).to_string(), "raw");
         assert_eq!(
-            ClipyError::Download("boom".into()).to_string(),
+            AcevidsError::Download("boom".into()).to_string(),
             "Download error: boom"
         );
     }
 
     #[test]
     fn from_conversions_pick_the_matching_variant() {
-        let e: ClipyError = std::io::Error::other("x").into();
-        assert!(matches!(e, ClipyError::Io(_)));
-        let e: ClipyError = serde_json::from_str::<i32>("x").unwrap_err().into();
-        assert!(matches!(e, ClipyError::Json(_)));
-        let e: ClipyError = url::Url::parse("").unwrap_err().into();
-        assert!(matches!(e, ClipyError::UrlParse(_)));
-        let e: ClipyError = rusqlite::Error::InvalidQuery.into();
-        assert!(matches!(e, ClipyError::Database(_)));
-        let e: ClipyError = anyhow::anyhow!("wrapped").into();
-        assert!(matches!(e, ClipyError::Other(ref m) if m == "wrapped"));
-        let e: ClipyError = tauri::Error::WindowNotFound.into();
-        assert!(matches!(e, ClipyError::Tauri(_)));
+        let e: AcevidsError = std::io::Error::other("x").into();
+        assert!(matches!(e, AcevidsError::Io(_)));
+        let e: AcevidsError = serde_json::from_str::<i32>("x").unwrap_err().into();
+        assert!(matches!(e, AcevidsError::Json(_)));
+        let e: AcevidsError = url::Url::parse("").unwrap_err().into();
+        assert!(matches!(e, AcevidsError::UrlParse(_)));
+        let e: AcevidsError = rusqlite::Error::InvalidQuery.into();
+        assert!(matches!(e, AcevidsError::Database(_)));
+        let e: AcevidsError = anyhow::anyhow!("wrapped").into();
+        assert!(matches!(e, AcevidsError::Other(ref m) if m == "wrapped"));
+        let e: AcevidsError = tauri::Error::WindowNotFound.into();
+        assert!(matches!(e, AcevidsError::Tauri(_)));
     }
 }

@@ -282,7 +282,7 @@ describe("thumbnailSrc", () => {
   it("routes local files through the media protocol", () => {
     mockConvertFileSrc("windows");
     expect(thumbnailSrc("C:\\thumbs\\a (1).jpg")).toBe(mediaSrc("C:\\thumbs\\a (1).jpg"));
-    expect(thumbnailSrc("C:\\thumbs\\a.jpg")).toMatch(/clipy-media/);
+    expect(thumbnailSrc("C:\\thumbs\\a.jpg")).toMatch(/acevids-media/);
   });
 });
 

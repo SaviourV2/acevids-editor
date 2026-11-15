@@ -1,4 +1,4 @@
-//! Data models for Clipy
+//! Data models for ACEVIDS
 
 pub mod download;
 pub mod library;

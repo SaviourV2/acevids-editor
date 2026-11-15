@@ -1,7 +1,7 @@
 //! Spawning helper programs (yt-dlp, FFmpeg, whisper, `where`) without
 //! flashing console windows.
 //!
-//! Clipy is a GUI-subsystem app on Windows, so every console program it starts
+//! ACEVIDS is a GUI-subsystem app on Windows, so every console program it starts
 //! would otherwise get a brand-new console window. All production spawns go
 //! through these constructors.
 

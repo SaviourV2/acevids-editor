@@ -15,7 +15,7 @@
 //! into the downloader, so pause/cancel/shutdown cannot deadlock against a
 //! finishing download.
 
-use crate::error::{ClipyError, Result};
+use crate::error::{AcevidsError, Result};
 use crate::models::download::{DownloadOptions, DownloadProgress, DownloadStatus, DownloadTask};
 use crate::models::library::LibraryVideo;
 use crate::services::database::{self, Database};
@@ -48,7 +48,7 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 ///
 /// # Example
 /// ```
-/// use clipy_lib::services::queue::clamp_concurrency;
+/// use acevids_lib::services::queue::clamp_concurrency;
 /// assert_eq!(clamp_concurrency(0), 1);
 /// assert_eq!(clamp_concurrency(3), 3);
 /// assert_eq!(clamp_concurrency(500), 10);
@@ -276,15 +276,17 @@ impl DownloadQueue {
         info!("Adding download to queue: {}", task.title);
         let mut st = self.state.lock().await;
         if st.shutting_down {
-            return Err(ClipyError::Download(
+            return Err(AcevidsError::Download(
                 "Download queue is shutting down".into(),
             ));
         }
         if st.active.contains_key(&task.id) {
-            return Err(ClipyError::Download("Download already in progress".into()));
+            return Err(AcevidsError::Download(
+                "Download already in progress".into(),
+            ));
         }
         if st.pending.iter().any(|t| t.id == task.id) {
-            return Err(ClipyError::Download("Download already in queue".into()));
+            return Err(AcevidsError::Download("Download already in queue".into()));
         }
         task.status = DownloadStatus::Pending;
         self.emit(&task);
@@ -498,7 +500,7 @@ impl DownloadQueue {
             let entry = st
                 .active
                 .get_mut(id)
-                .ok_or_else(|| ClipyError::Download("Download not found".into()))?;
+                .ok_or_else(|| AcevidsError::Download("Download not found".into()))?;
             match entry.task.status {
                 DownloadStatus::Paused => return Ok(()),
                 status if is_running(status) => {
@@ -510,7 +512,7 @@ impl DownloadQueue {
                     self.emit(&task);
                 }
                 _ => {
-                    return Err(ClipyError::Download("Download is not running".into()));
+                    return Err(AcevidsError::Download("Download is not running".into()));
                 }
             }
             st.handles.remove(id)
@@ -531,7 +533,7 @@ impl DownloadQueue {
                 .get(id)
                 .is_some_and(|e| e.task.status == DownloadStatus::Paused);
             if !paused {
-                return Err(ClipyError::Download(
+                return Err(AcevidsError::Download(
                     "Download not found or not paused".into(),
                 ));
             }
@@ -576,7 +578,7 @@ impl DownloadQueue {
             let entry = st
                 .active
                 .get_mut(id)
-                .ok_or_else(|| ClipyError::Download("Download not found".into()))?;
+                .ok_or_else(|| AcevidsError::Download("Download not found".into()))?;
             if is_terminal(entry.task.status) {
                 st.active.remove(id);
                 return Ok(());
@@ -607,14 +609,14 @@ impl DownloadQueue {
             .active
             .get(id)
             .map(|e| e.task.status)
-            .ok_or_else(|| ClipyError::Download("Download not found".into()))?;
+            .ok_or_else(|| AcevidsError::Download("Download not found".into()))?;
         if !matches!(status, DownloadStatus::Failed | DownloadStatus::Cancelled) {
-            return Err(ClipyError::Download(
+            return Err(AcevidsError::Download(
                 "Download is not in a retryable state".into(),
             ));
         }
         if st.shutting_down {
-            return Err(ClipyError::Download(
+            return Err(AcevidsError::Download(
                 "Download queue is shutting down".into(),
             ));
         }
@@ -763,7 +765,7 @@ pub fn get_queue() -> Result<Arc<DownloadQueue>> {
         .read()
         .unwrap_or_else(|e| e.into_inner())
         .clone()
-        .ok_or_else(|| ClipyError::Download("Download queue not initialized".into()))
+        .ok_or_else(|| AcevidsError::Download("Download queue not initialized".into()))
 }
 
 // -----------------------------------------------------------------------------
@@ -907,7 +909,7 @@ pub(crate) mod testing {
         }
 
         pub fn fail(&self, id: &str, msg: &str) {
-            self.resolve(id, Err(ClipyError::Ytdlp(msg.into())));
+            self.resolve(id, Err(AcevidsError::Ytdlp(msg.into())));
         }
 
         pub async fn send_progress(&self, id: &str, status: DownloadStatus, pct: f64) {
@@ -948,7 +950,7 @@ pub(crate) mod testing {
             let now = inner.in_flight.fetch_add(1, Ordering::SeqCst) + 1;
             inner.peak.fetch_max(now, Ordering::SeqCst);
             Box::pin(async move {
-                let result = rx.await.unwrap_or(Err(ClipyError::Cancelled));
+                let result = rx.await.unwrap_or(Err(AcevidsError::Cancelled));
                 inner.in_flight.fetch_sub(1, Ordering::SeqCst);
                 result
             })
@@ -962,7 +964,7 @@ pub(crate) mod testing {
                 }
                 let control = self.inner.controls.lock().unwrap().remove(id);
                 if let Some(control) = control {
-                    let _ = control.outcome.send(Err(ClipyError::Cancelled));
+                    let _ = control.outcome.send(Err(AcevidsError::Cancelled));
                 }
             })
         }

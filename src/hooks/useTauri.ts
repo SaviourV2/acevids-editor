@@ -42,7 +42,7 @@ export interface YtdlpUpdateStatus {
   latest: string;
   /** Whether `latest` is newer than `current`. */
   updateAvailable: boolean;
-  /** Whether Clipy owns this copy and may update it (false for a PATH install). */
+  /** Whether ACEVIDS owns this copy and may update it (false for a PATH install). */
   managed: boolean;
 }
 

@@ -36,7 +36,7 @@ export const logger = {
   /** Always logs (INFO level) - for essential startup info. */
   info: (message: string, ...args: unknown[]): void => {
     console.log(
-      `%c[Clipy]%c ${message}`,
+      `%c[ACEVIDS]%c ${message}`,
       "color: #3b82f6; font-weight: bold",
       "color: inherit",
       ...args
@@ -77,7 +77,7 @@ export const logger = {
     console.log("");
 
     if (debugMode) {
-      console.log("%c[Clipy] Debug mode is enabled - verbose logging active", "color: #22c55e");
+      console.log("%c[ACEVIDS] Debug mode is enabled - verbose logging active", "color: #22c55e");
       console.log("");
     }
   },

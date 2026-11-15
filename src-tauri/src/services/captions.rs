@@ -14,7 +14,7 @@
 //! Windows DLL search order of those executables never picks up whisper's
 //! libraries (or anything that later lands beside them).
 
-use crate::error::{ClipyError, Result};
+use crate::error::{AcevidsError, Result};
 use crate::services::{binary, ffmpeg};
 use crate::utils::process::tokio_command;
 use crate::utils::{path_policy, paths};
@@ -166,7 +166,7 @@ pub fn find_model(id: &str) -> Result<&'static WhisperModel> {
     WHISPER_MODELS
         .iter()
         .find(|m| m.id == id)
-        .ok_or_else(|| ClipyError::Other(format!("Unknown caption model: {id:?}")))
+        .ok_or_else(|| AcevidsError::Other(format!("Unknown caption model: {id:?}")))
 }
 
 /// One transcribed word with millisecond timing. Returned to the frontend.
@@ -197,7 +197,7 @@ pub struct CaptionResult {
 fn models_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     let dir = paths::get_app_data_dir(app)?.join("models");
     std::fs::create_dir_all(&dir)
-        .map_err(|e| ClipyError::Other(format!("Failed to create models dir: {}", e)))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to create models dir: {}", e)))?;
     Ok(dir)
 }
 
@@ -296,7 +296,7 @@ async fn download_model(src: &CaptionSources, model: &WhisperModel, target: &Pat
 /// for now; other platforms need a system `whisper-cli`).
 async fn install_whisper_binary(src: &CaptionSources, binaries_dir: &Path) -> Result<()> {
     if !cfg!(target_os = "windows") {
-        return Err(ClipyError::Other(
+        return Err(AcevidsError::Other(
             "Automatic whisper install is currently Windows-only; install whisper-cli on PATH"
                 .into(),
         ));
@@ -325,11 +325,11 @@ async fn install_whisper_bundle(src: &CaptionSources, binaries_dir: &Path) -> Re
         binary::extract_zip(&archive, &extract_dir, &whisper_entry_dest)
     })
     .await
-    .map_err(|e| ClipyError::Other(format!("Whisper extract task failed: {}", e)))?;
+    .map_err(|e| AcevidsError::Other(format!("Whisper extract task failed: {}", e)))?;
     let _ = std::fs::remove_file(&zip_path);
     let written = res?;
     if !written.iter().any(|p| p.ends_with("whisper-cli.exe")) {
-        return Err(ClipyError::Other(
+        return Err(AcevidsError::Other(
             "whisper-cli.exe not found in release zip".into(),
         ));
     }
@@ -418,7 +418,7 @@ pub async fn generate_captions<R: Runtime>(
 
     let temp_dir = paths::get_temp_dir(app)?;
     std::fs::create_dir_all(&temp_dir)
-        .map_err(|e| ClipyError::Other(format!("Failed to create temp dir: {}", e)))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to create temp dir: {}", e)))?;
     let stem = caption_stem(&source);
     let wav_path = temp_dir.join(format!("{}.wav", stem));
     let out_stem = temp_dir.join(&stem);
@@ -429,9 +429,9 @@ pub async fn generate_captions<R: Runtime>(
         .args(build_extract_audio_args(&source, &wav_path))
         .output()
         .await
-        .map_err(|e| ClipyError::FFmpeg(format!("Failed to extract audio: {}", e)))?;
+        .map_err(|e| AcevidsError::FFmpeg(format!("Failed to extract audio: {}", e)))?;
     if !status.status.success() {
-        return Err(ClipyError::FFmpeg(format!(
+        return Err(AcevidsError::FFmpeg(format!(
             "ffmpeg audio extraction failed: {}",
             String::from_utf8_lossy(&status.stderr)
         )));
@@ -454,7 +454,7 @@ pub async fn generate_captions<R: Runtime>(
         .stderr(std::process::Stdio::piped())
         .kill_on_drop(true)
         .spawn()
-        .map_err(|e| ClipyError::Other(format!("Failed to run whisper-cli: {}", e)))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to run whisper-cli: {}", e)))?;
 
     let mut stderr_tail = String::new();
     if let Some(stderr) = child.stderr.take() {
@@ -475,20 +475,20 @@ pub async fn generate_captions<R: Runtime>(
     let _ = child
         .wait()
         .await
-        .map_err(|e| ClipyError::Other(format!("whisper-cli failed: {}", e)))?;
+        .map_err(|e| AcevidsError::Other(format!("whisper-cli failed: {}", e)))?;
 
     // whisper-cli writes errors to stderr but may still exit 0; check output file.
     let json_path = temp_dir.join(format!("{}.json", stem));
     let _ = std::fs::remove_file(&wav_path);
     if !json_path.exists() {
-        return Err(ClipyError::Other(format!(
+        return Err(AcevidsError::Other(format!(
             "whisper produced no output: {}",
             stderr_tail
         )));
     }
 
     let raw = std::fs::read_to_string(&json_path)
-        .map_err(|e| ClipyError::Other(format!("Failed to read whisper json: {}", e)))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to read whisper json: {}", e)))?;
     let _ = std::fs::remove_file(&json_path);
     let result = parse_whisper_json(&raw, model_info.id)?;
 
@@ -562,7 +562,7 @@ struct WhisperToken {
 
 fn parse_whisper_json(raw: &str, model: &str) -> Result<CaptionResult> {
     let parsed: WhisperJson = serde_json::from_str(raw)
-        .map_err(|e| ClipyError::Other(format!("Failed to parse whisper json: {}", e)))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to parse whisper json: {}", e)))?;
 
     let mut words = Vec::with_capacity(parsed.transcription.len());
     for seg in parsed.transcription {

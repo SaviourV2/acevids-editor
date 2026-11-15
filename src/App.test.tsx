@@ -42,7 +42,7 @@ describe("App", () => {
   describe("first-run gate", () => {
     it("shows only the setup wizard on first run", async () => {
       setup("/library");
-      expect(screen.getByText("Welcome to Clipy")).toBeInTheDocument();
+      expect(screen.getByText("Welcome to ACEVIDS")).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "Library" })).toBeNull();
     });
 
@@ -57,7 +57,7 @@ describe("App", () => {
           throw "unknown command";
         },
       });
-      expect(await screen.findByText("Welcome to Clipy")).toBeInTheDocument();
+      expect(await screen.findByText("Welcome to ACEVIDS")).toBeInTheDocument();
     });
 
     it("switches to the app once onboarding completes", async () => {

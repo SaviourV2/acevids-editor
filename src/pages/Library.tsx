@@ -194,7 +194,7 @@ export function Library() {
   const handleExport = useCallback(async () => {
     try {
       const path = await save({
-        defaultPath: "clipy-library.json",
+        defaultPath: "acevids-library.json",
         filters: [{ name: "JSON", extensions: ["json"] }],
       });
       if (!path) return;

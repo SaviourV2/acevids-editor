@@ -64,7 +64,7 @@ describe("buildCssFilter", () => {
   it("references the clip's SVG filter for sharpen, only when above 0", () => {
     expect(buildCssFilter([f("sharpen", 5)], "a/b c")).toBe(`url(#${sharpenFilterId("a/b c")})`);
     expect(buildCssFilter([f("sharpen", 0)], "c")).toBe("");
-    expect(sharpenFilterId("a/b c")).toBe("clipy-sharpen-a_b_c");
+    expect(sharpenFilterId("a/b c")).toBe("acevids-sharpen-a_b_c");
   });
 
   it("ignores unknown filter types", () => {

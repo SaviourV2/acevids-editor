@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { YtdlpUpdateStatus } from "@/hooks/useTauri";
 
-/** Update state for a tool that Clipy can update. */
+/** Update state for a tool that ACEVIDS can update. */
 export interface BinaryUpdateState {
   /** Comparison with the latest release; null until checked or if the check failed. */
   status: YtdlpUpdateStatus | null;
@@ -20,7 +20,7 @@ export interface BinaryCardProps {
   installing: boolean;
   onInstall: () => void;
   onUpdate?: () => void;
-  /** Present for tools Clipy can update; omitted for tools it only installs. */
+  /** Present for tools ACEVIDS can update; omitted for tools it only installs. */
   update?: BinaryUpdateState;
 }
 
@@ -31,7 +31,7 @@ function statusLine(version: string | null | undefined, update?: BinaryUpdateSta
   if (update.checking) return `${base} · checking for updates…`;
   const { status } = update;
   if (!status) return base;
-  if (!status.managed) return `${base} · managed outside Clipy`;
+  if (!status.managed) return `${base} · managed outside ACEVIDS`;
   return status.updateAvailable ? `${base} · ${status.latest} available` : `${base} · up to date`;
 }
 

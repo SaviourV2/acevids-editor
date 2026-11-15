@@ -16,7 +16,7 @@
 //! - every user string that reaches `-filter_complex` (drawtext content,
 //!   colors) is escaped or allowlisted.
 
-use crate::error::{ClipyError, Result};
+use crate::error::{AcevidsError, Result};
 use crate::models::project::{
     ClipType, ExportProgress, ExportSettings, ExportStatus, Filter, Project, TextAlign, TrackType,
     Transform, VerticalAlign,
@@ -141,11 +141,11 @@ async fn probe_with(ffprobe_path: &Path, input: &Path) -> Result<VideoMetadata> 
         .args(build_probe_args(input))
         .output()
         .await
-        .map_err(|e| ClipyError::FFmpeg(format!("Failed to run ffprobe: {}", e)))?;
+        .map_err(|e| AcevidsError::FFmpeg(format!("Failed to run ffprobe: {}", e)))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(ClipyError::FFmpeg(format!("ffprobe failed: {}", stderr)));
+        return Err(AcevidsError::FFmpeg(format!("ffprobe failed: {}", stderr)));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -155,11 +155,11 @@ async fn probe_with(ffprobe_path: &Path, input: &Path) -> Result<VideoMetadata> 
 /// Parse FFprobe JSON output
 fn parse_ffprobe_output(output: &str) -> Result<VideoMetadata> {
     let json: serde_json::Value = serde_json::from_str(output)
-        .map_err(|e| ClipyError::FFmpeg(format!("Failed to parse ffprobe output: {}", e)))?;
+        .map_err(|e| AcevidsError::FFmpeg(format!("Failed to parse ffprobe output: {}", e)))?;
 
     let streams = json["streams"]
         .as_array()
-        .ok_or_else(|| ClipyError::FFmpeg("No streams found".into()))?;
+        .ok_or_else(|| AcevidsError::FFmpeg("No streams found".into()))?;
 
     let mut metadata = VideoMetadata {
         duration: 0.0,
@@ -234,17 +234,17 @@ fn build_thumbnail_args(input: &Path, output: &Path, time: f64, width: Option<u3
     args
 }
 
-/// Run ffmpeg with `args`, mapping a non-zero exit to `ClipyError::FFmpeg`
+/// Run ffmpeg with `args`, mapping a non-zero exit to `AcevidsError::FFmpeg`
 /// prefixed with `what`.
 async fn run_ffmpeg(ffmpeg_path: &Path, args: &[String], what: &str) -> Result<Vec<u8>> {
     let output = tokio_command(ffmpeg_path)
         .args(args)
         .output()
         .await
-        .map_err(|e| ClipyError::FFmpeg(format!("{what}: failed to run ffmpeg: {e}")))?;
+        .map_err(|e| AcevidsError::FFmpeg(format!("{what}: failed to run ffmpeg: {e}")))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(ClipyError::FFmpeg(format!("{what} failed: {stderr}")));
+        return Err(AcevidsError::FFmpeg(format!("{what} failed: {stderr}")));
     }
     Ok(output.stdout)
 }
@@ -618,12 +618,12 @@ async fn run_export(
         .stderr(Stdio::piped())
         .kill_on_drop(true)
         .spawn()
-        .map_err(|e| ClipyError::FFmpeg(format!("Failed to spawn ffmpeg: {}", e)))?;
+        .map_err(|e| AcevidsError::FFmpeg(format!("Failed to spawn ffmpeg: {}", e)))?;
 
     let stdout = child
         .stdout
         .take()
-        .ok_or_else(|| ClipyError::FFmpeg("Failed to capture stdout".into()))?;
+        .ok_or_else(|| AcevidsError::FFmpeg("Failed to capture stdout".into()))?;
     // Drain stderr so the pipe never fills and blocks ffmpeg; keep the tail for errors.
     let stderr = child.stderr.take();
     let stderr_handle = stderr.map(|s| {
@@ -697,7 +697,7 @@ async fn run_export(
     let status = child
         .wait()
         .await
-        .map_err(|e| ClipyError::FFmpeg(format!("Failed to wait for ffmpeg: {}", e)))?;
+        .map_err(|e| AcevidsError::FFmpeg(format!("Failed to wait for ffmpeg: {}", e)))?;
 
     let stderr_tail = match stderr_handle {
         Some(h) => h.await.unwrap_or_default(),
@@ -718,7 +718,7 @@ async fn run_export(
                 ExportStatus::Cancelled,
             ))
             .await;
-        return Err(ClipyError::ExportFailed("Export cancelled".into()));
+        return Err(AcevidsError::ExportFailed("Export cancelled".into()));
     }
 
     if !status.success() {
@@ -741,7 +741,7 @@ async fn run_export(
                 )
             })
             .await;
-        return Err(ClipyError::FFmpeg(format!(
+        return Err(AcevidsError::FFmpeg(format!(
             "Export failed: {}",
             if stderr_tail.is_empty() {
                 "unknown error"
@@ -1287,7 +1287,7 @@ async fn list_ffmpeg_encoders<R: Runtime>(app: &AppHandle<R>) -> Result<Vec<Stri
         .args(["-hide_banner", "-encoders"])
         .output()
         .await
-        .map_err(|e| ClipyError::FFmpeg(format!("Failed to list encoders: {}", e)))?;
+        .map_err(|e| AcevidsError::FFmpeg(format!("Failed to list encoders: {}", e)))?;
     let names = parse_encoder_list(&String::from_utf8_lossy(&output.stdout));
     let _ = ENCODER_CACHE.set(names.clone());
     Ok(names)
@@ -2617,14 +2617,14 @@ mod tests {
         )
         .await
         .unwrap_err();
-        assert!(matches!(err, ClipyError::InvalidPath(_)), "{err:?}");
+        assert!(matches!(err, AcevidsError::InvalidPath(_)), "{err:?}");
 
         let (_, good) = export_fixture(dir.path());
         p.tracks[0].clips[0].source_path = "concat:/a.mp4|/b.mp4".into();
         let err = run_export(Path::new("ffmpeg"), &enc("libx264", false), &p, &good, tx)
             .await
             .unwrap_err();
-        assert!(matches!(err, ClipyError::InvalidPath(_)), "{err:?}");
+        assert!(matches!(err, AcevidsError::InvalidPath(_)), "{err:?}");
     }
 
     #[tokio::test]
@@ -2636,7 +2636,7 @@ mod tests {
         let err = run_export(&missing, &enc("libx264", false), &p, &s, tx)
             .await
             .unwrap_err();
-        assert!(matches!(err, ClipyError::FFmpeg(_)), "{err:?}");
+        assert!(matches!(err, AcevidsError::FFmpeg(_)), "{err:?}");
         assert_eq!(rx.recv().await.unwrap().status, ExportStatus::Preparing);
     }
 
@@ -2890,7 +2890,7 @@ mod tests {
         let err = run_export(&ffmpeg, &enc("libx264", false), &p, &s, tx)
             .await
             .unwrap_err();
-        assert!(matches!(err, ClipyError::ExportFailed(_)), "{err:?}");
+        assert!(matches!(err, AcevidsError::ExportFailed(_)), "{err:?}");
         assert!(!Path::new(&s.output_path).exists());
         assert!(!export_cancelled());
         assert_eq!(
@@ -2924,7 +2924,7 @@ mod tests {
         }
         request_export_cancel();
         let err = task.await.unwrap().unwrap_err();
-        assert!(matches!(err, ClipyError::ExportFailed(_)), "{err:?}");
+        assert!(matches!(err, AcevidsError::ExportFailed(_)), "{err:?}");
         assert!(!export_cancelled());
     }
 }

@@ -1,4 +1,4 @@
-//! Path utilities for Clipy
+//! Path utilities for ACEVIDS
 //!
 //! Handles all application path management including:
 //! - App data directory
@@ -10,13 +10,13 @@
 //! Every resolver is generic over the Tauri [`Runtime`] so the same code runs
 //! against the real Wry runtime and `tauri::test::MockRuntime`.
 
-use crate::error::{ClipyError, Result};
+use crate::error::{AcevidsError, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, Runtime};
 use tracing::{debug, info, warn};
 
-const APP_NAME: &str = "Clipy";
+const APP_NAME: &str = "ACEVIDS";
 const CONFIG_FILE: &str = "config.json";
 const DATABASE_FILE: &str = "library.db";
 const CACHE_DIR: &str = "cache";
@@ -31,7 +31,7 @@ const DOWNLOAD_ARCHIVE_FILE: &str = "download_archive.txt";
 pub fn get_app_data_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     app.path()
         .app_data_dir()
-        .map_err(|e| ClipyError::InvalidPath(e.to_string()))
+        .map_err(|e| AcevidsError::InvalidPath(e.to_string()))
 }
 
 /// Get the config file path
@@ -96,7 +96,7 @@ pub fn executable_name(stem: &str) -> String {
 
 /// Get the default downloads directory.
 ///
-/// NOTE: this prefers the OS *Videos* folder (`~/Videos/Clipy`) and only falls
+/// NOTE: this prefers the OS *Videos* folder (`~/Videos/ACEVIDS`) and only falls
 /// back to *Downloads* when the platform has no Videos dir.
 /// `commands::system::get_default_download_path` prefers *Downloads* instead;
 /// the two are intentionally left as-is because existing installs already
@@ -106,8 +106,8 @@ pub fn get_default_downloads_dir() -> PathBuf {
     downloads_dir_from(dirs::video_dir(), dirs::download_dir(), dirs::home_dir())
 }
 
-/// `<Videos>/Clipy`, else `<Downloads>/Clipy`, else `<home>/Downloads/Clipy`,
-/// else `<temp>/Clipy`.
+/// `<Videos>/ACEVIDS`, else `<Downloads>/ACEVIDS`, else `<home>/Downloads/ACEVIDS`,
+/// else `<temp>/ACEVIDS`.
 ///
 /// NOTE: on Linux the XDG Videos/Downloads dirs are `None` when there is no
 /// `user-dirs.dirs` (fresh accounts, CI, minimal distros). The result must
@@ -297,7 +297,7 @@ mod tests {
     #[test]
     fn default_downloads_dir_ends_with_app_name() {
         let dir = get_default_downloads_dir();
-        assert_eq!(dir.file_name().unwrap(), "Clipy");
+        assert_eq!(dir.file_name().unwrap(), "ACEVIDS");
         assert!(dir.is_absolute(), "{dir:?}");
     }
 
@@ -312,17 +312,17 @@ mod tests {
         };
         assert_eq!(
             p(Some("/v"), Some("/d"), Some("/h")),
-            Path::new("/v").join("Clipy")
+            Path::new("/v").join("ACEVIDS")
         );
         assert_eq!(
             p(None, Some("/d"), Some("/h")),
-            Path::new("/d").join("Clipy")
+            Path::new("/d").join("ACEVIDS")
         );
         assert_eq!(
             p(None, None, Some("/h")),
-            Path::new("/h").join("Downloads").join("Clipy")
+            Path::new("/h").join("Downloads").join("ACEVIDS")
         );
-        assert_eq!(p(None, None, None), std::env::temp_dir().join("Clipy"));
+        assert_eq!(p(None, None, None), std::env::temp_dir().join("ACEVIDS"));
     }
 
     #[test]
@@ -331,7 +331,7 @@ mod tests {
         // A regular file where a parent directory should be makes create_dir_all fail
         // on every platform, standing in for a read-only working directory.
         let blocker = tempfile::NamedTempFile::new().unwrap();
-        let downloads = blocker.path().join("Clipy");
+        let downloads = blocker.path().join("ACEVIDS");
 
         ensure_app_dirs_with(app.handle(), &downloads).unwrap();
         assert!(!downloads.exists());

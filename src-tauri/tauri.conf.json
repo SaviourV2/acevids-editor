@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Clipy",
+  "productName": "ACEVIDS",
   "version": "2.0.2",
-  "identifier": "com.clipy.app",
+  "identifier": "com.acevids.app",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -12,11 +12,11 @@
   "app": {
     "withGlobalTauri": false,
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: clipy-media: http://clipy-media.localhost https://clipy-media.localhost https:; media-src 'self' blob: clipy-media: http://clipy-media.localhost https://clipy-media.localhost; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: acevids-media: http://acevids-media.localhost https://acevids-media.localhost https:; media-src 'self' blob: acevids-media: http://acevids-media.localhost https://acevids-media.localhost; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
     },
     "windows": [
       {
-        "title": "Clipy",
+        "title": "ACEVIDS",
         "width": 1280,
         "height": 800,
         "minWidth": 900,
@@ -34,7 +34,6 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -44,10 +43,10 @@
     ],
     "resources": [],
     "externalBin": [],
-    "copyright": "Copyright © 2026 Clipy",
+    "copyright": "Copyright © 2026 BankkRoll (Clipy) and ACEVIDS contributors",
     "category": "Video",
     "shortDescription": "YouTube video downloader and editor",
-    "longDescription": "Clipy is an open-source, bloat-free desktop application for downloading and editing YouTube videos in their original quality without compression or re-encoding.",
+    "longDescription": "ACEVIDS is an open-source, bloat-free desktop application for downloading and editing YouTube videos in their original quality without compression or re-encoding.",
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
@@ -87,13 +86,6 @@
   "plugins": {
     "shell": {
       "open": true
-    },
-    "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUwOUI5OTM1Q0I3MzUzNTQKUldSVVUzUExOWm1iNENlMGpvUWlRTnZ4RkxEamFyK0dEeFpCbll5ZDBrU0hPTXk3Tjh4TU1oTTkK",
-      "endpoints": ["https://github.com/BankkRoll/clipy/releases/latest/download/latest.json"],
-      "windows": {
-        "installMode": "passive"
-      }
     }
   }
 }

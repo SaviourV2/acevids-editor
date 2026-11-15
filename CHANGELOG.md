@@ -1,10 +1,25 @@
 # Changelog
 
-All notable changes to Clipy are documented here. The format follows
+All notable changes to ACEVIDS are documented here. ACEVIDS is a fork of
+[Clipy](https://github.com/BankkRoll/clipy); entries up to 2.0.2 are Clipy's
+own release history and keep its name. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+
+### Changed
+
+- Renamed the app from Clipy to ACEVIDS. The app identifier is now
+  `com.acevids.app`, so settings, the library and downloaded tools live in a
+  new data folder, the default download folder is `ACEVIDS`, and project
+  files use the `.acevids` extension.
+
+### Removed
+
+- The in-app updater, its "Check for Updates" button and the "Auto-check for
+  updates" setting. ACEVIDS no longer contacts a release server or replaces
+  itself. Automatic yt-dlp updates are unchanged.
 
 ## [2.0.2] - 2026-10-08
 

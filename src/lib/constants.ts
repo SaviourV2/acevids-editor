@@ -2,7 +2,7 @@
  * Application constants
  */
 
-export const APP_NAME = "Clipy";
+export const APP_NAME = "ACEVIDS";
 export const APP_VERSION = "2.0.0";
 
 /**

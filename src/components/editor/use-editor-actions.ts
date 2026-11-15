@@ -32,7 +32,7 @@ import {
 } from "@/lib/editor/timeline";
 import { fromBackendProject, toBackendProject } from "@/lib/editor/project-mapping";
 
-const PROJECT_FILTERS = [{ name: "Clipy Project", extensions: ["clipy"] }];
+const PROJECT_FILTERS = [{ name: "ACEVIDS Project", extensions: ["acevids"] }];
 
 /** Commands returned by {@link useEditorActions}. */
 export interface EditorActions {
@@ -122,7 +122,7 @@ export function useEditorActions(): EditorActions {
       return;
     }
     try {
-      const path = await save({ filters: PROJECT_FILTERS, defaultPath: `${project.name}.clipy` });
+      const path = await save({ filters: PROJECT_FILTERS, defaultPath: `${project.name}.acevids` });
       if (!path) return;
       await invoke("save_project", { project: toBackendProject(project), path });
       useEditorStore.getState().saveProject();

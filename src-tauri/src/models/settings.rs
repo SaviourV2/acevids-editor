@@ -22,7 +22,6 @@ pub struct GeneralSettings {
     pub launch_on_startup: bool,
     pub minimize_to_tray: bool,
     pub close_to_tray: bool,
-    pub check_for_updates: bool,
     pub auto_update_binaries: bool,
 }
 
@@ -35,7 +34,6 @@ impl Default for GeneralSettings {
             // this on makes a fresh launch look like the app failed to open.
             minimize_to_tray: false,
             close_to_tray: false,
-            check_for_updates: true,
             auto_update_binaries: true,
         }
     }
@@ -175,7 +173,7 @@ fn default_encoding_preset() -> String {
     "medium".to_string()
 }
 
-/// Default download directory as a string (OS Videos/Clipy or Downloads/Clipy).
+/// Default download directory as a string (OS Videos/ACEVIDS or Downloads/ACEVIDS).
 /// Never empty — an empty path breaks yt-dlp's output template (resolves to
 /// drive root -> "permission denied").
 ///
@@ -354,7 +352,7 @@ mod tests {
     fn default_download_path_is_never_empty() {
         let s = DownloadSettings::default();
         assert!(!s.download_path.is_empty());
-        assert!(s.download_path.ends_with("Clipy"));
+        assert!(s.download_path.ends_with("ACEVIDS"));
     }
 
     #[test]

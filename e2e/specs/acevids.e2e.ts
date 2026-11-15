@@ -18,14 +18,15 @@ import { watchConsoleWindows, type ConsoleWatch } from "../support/console-watch
  * "Me at the zoo" (19 s) is the most stable video on YouTube. Override with
  * another yt-dlp-supported URL if YouTube starts bot-checking your IP.
  */
-const VIDEO_URL = process.env.CLIPY_E2E_VIDEO_URL ?? "https://www.youtube.com/watch?v=jNQXAC9IVRw";
-const VIDEO_TITLE = process.env.CLIPY_E2E_VIDEO_TITLE ?? "Me at the zoo";
+const VIDEO_URL =
+  process.env.ACEVIDS_E2E_VIDEO_URL ?? "https://www.youtube.com/watch?v=jNQXAC9IVRw";
+const VIDEO_TITLE = process.env.ACEVIDS_E2E_VIDEO_TITLE ?? "Me at the zoo";
 /** A long video for pause/resume/cancel, throttled so it can't finish. */
 const LONG_URL = "https://www.youtube.com/watch?v=aqz-KE-bpKQ";
 const LONG_TITLE = "Big Buck Bunny";
 const AUDIO_EXTENSIONS = [".mp3", ".m4a", ".opus", ".ogg", ".aac", ".flac", ".wav"];
 
-const workDir = process.env.CLIPY_E2E_WORKDIR!;
+const workDir = process.env.ACEVIDS_E2E_WORKDIR!;
 const downloadDir = path.join(workDir, "downloads");
 const exportPath = path.join(workDir, "export.mp4");
 
@@ -78,7 +79,7 @@ async function fetchVideo(url: string, title: string) {
 
 const downloaded = () => (existsSync(downloadDir) ? readdirSync(downloadDir) : []);
 
-describe("Clipy end to end", () => {
+describe("ACEVIDS end to end", () => {
   let consoles: ConsoleWatch;
 
   before(async () => {
@@ -88,8 +89,8 @@ describe("Clipy end to end", () => {
   after(() => consoles.stop());
 
   it("boots into the first-run setup", async () => {
-    await expect(text("Welcome to Clipy")).toBeDisplayed({ wait: 60_000 });
-    await expect(browser).toHaveTitle(expect.stringContaining("Clipy"));
+    await expect(text("Welcome to ACEVIDS")).toBeDisplayed({ wait: 60_000 });
+    await expect(browser).toHaveTitle(expect.stringContaining("ACEVIDS"));
   });
 
   it("installs the required tools during setup", async () => {
@@ -120,7 +121,7 @@ describe("Clipy end to end", () => {
     await expect(heading("Advanced Options")).toBeDisplayed();
     await (await button("Continue")).click();
     await expect(heading("You're All Set")).toBeDisplayed();
-    await (await button("Start Using Clipy")).click();
+    await (await button("Start Using ACEVIDS")).click();
     await expect($(`a[aria-label="Home"]`)).toBeDisplayed({ wait: 30_000 });
   });
 
@@ -253,7 +254,7 @@ describe("Clipy end to end", () => {
 
   it("persists a settings change across a reload", async () => {
     const updatesSwitch = () =>
-      $(`${settingGroup("Auto-check for updates")}//button[@role="switch"]`);
+      $(`${settingGroup("Auto-update binaries")}//button[@role="switch"]`);
     await navigate("Settings");
     const before = await (await updatesSwitch()).getAttribute("aria-checked");
     await (await updatesSwitch()).click();

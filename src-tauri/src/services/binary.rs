@@ -25,7 +25,7 @@
 //! cover that case; for continuously released tools (yt-dlp, ffmpeg) pinning
 //! would freeze users on old versions.
 
-use crate::error::{ClipyError, Result};
+use crate::error::{AcevidsError, Result};
 use crate::models::settings::BinaryStatus;
 use crate::utils::paths;
 use crate::utils::process::std_command;
@@ -166,13 +166,13 @@ pub fn check_binaries<R: Runtime>(app: &AppHandle<R>) -> Result<BinaryStatus> {
 /// Get the path to FFmpeg binary
 pub fn get_ffmpeg_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     find_binary(&paths::get_binaries_dir(app)?, "ffmpeg")
-        .ok_or_else(|| ClipyError::BinaryNotFound("FFmpeg not found".into()))
+        .ok_or_else(|| AcevidsError::BinaryNotFound("FFmpeg not found".into()))
 }
 
 /// Get the path to yt-dlp binary
 pub fn get_ytdlp_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
     find_binary(&paths::get_binaries_dir(app)?, "yt-dlp")
-        .ok_or_else(|| ClipyError::BinaryNotFound("yt-dlp not found".into()))
+        .ok_or_else(|| AcevidsError::BinaryNotFound("yt-dlp not found".into()))
 }
 
 /// Get the path to FFprobe binary (comes bundled with FFmpeg)
@@ -184,7 +184,7 @@ pub fn get_ffprobe_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
             let beside = platform_exe(ffmpeg.parent()?.join(exe_name("ffprobe")));
             beside.exists().then_some(beside)
         })
-        .ok_or_else(|| ClipyError::BinaryNotFound("FFprobe not found".into()))
+        .ok_or_else(|| AcevidsError::BinaryNotFound("FFprobe not found".into()))
 }
 
 // -----------------------------------------------------------------------------
@@ -214,7 +214,7 @@ pub(crate) fn verify_sha256(actual: &str, expected: &str, what: &str) -> Result<
     if is_sha256_hex(expected) && actual.eq_ignore_ascii_case(expected) {
         Ok(())
     } else {
-        Err(ClipyError::Other(format!(
+        Err(AcevidsError::Other(format!(
             "Checksum mismatch for {what}: expected {expected}, got {actual}"
         )))
     }
@@ -239,9 +239,9 @@ const MAX_BINARY_DOWNLOAD: u64 = 512 * 1024 * 1024;
 /// Shared HTTP client (redirects followed; GitHub requires a User-Agent).
 pub(crate) fn http_client() -> Result<reqwest::Client> {
     reqwest::Client::builder()
-        .user_agent(concat!("Clipy/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("ACEVIDS/", env!("CARGO_PKG_VERSION")))
         .build()
-        .map_err(|e| ClipyError::Other(format!("HTTP client error: {e}")))
+        .map_err(|e| AcevidsError::Other(format!("HTTP client error: {e}")))
 }
 
 /// Fetch a small text resource (checksum listings).
@@ -250,36 +250,36 @@ async fn fetch_text(client: &reqwest::Client, url: &str) -> Result<String> {
         .get(url)
         .send()
         .await
-        .map_err(|e| ClipyError::Other(format!("Failed to fetch {url}: {e}")))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to fetch {url}: {e}")))?;
     if !resp.status().is_success() {
-        return Err(ClipyError::Other(format!(
+        return Err(AcevidsError::Other(format!(
             "Failed to fetch {url}: HTTP {}",
             resp.status()
         )));
     }
     resp.text()
         .await
-        .map_err(|e| ClipyError::Other(format!("Failed to read {url}: {e}")))
+        .map_err(|e| AcevidsError::Other(format!("Failed to read {url}: {e}")))
 }
 
 /// Return the `Location` of a redirect at `url` without following it.
 async fn resolve_redirect(url: &str) -> Result<String> {
     let client = reqwest::Client::builder()
-        .user_agent(concat!("Clipy/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("ACEVIDS/", env!("CARGO_PKG_VERSION")))
         .redirect(reqwest::redirect::Policy::none())
         .build()
-        .map_err(|e| ClipyError::Other(format!("HTTP client error: {e}")))?;
+        .map_err(|e| AcevidsError::Other(format!("HTTP client error: {e}")))?;
     let resp = client
         .get(url)
         .send()
         .await
-        .map_err(|e| ClipyError::Other(format!("Failed to resolve {url}: {e}")))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to resolve {url}: {e}")))?;
     resp.headers()
         .get(reqwest::header::LOCATION)
         .and_then(|v| v.to_str().ok())
         .map(str::to_string)
         .ok_or_else(|| {
-            ClipyError::Other(format!(
+            AcevidsError::Other(format!(
                 "Expected a redirect from {url}, got HTTP {}",
                 resp.status()
             ))
@@ -299,30 +299,30 @@ async fn download_to_temp(
         .get(url)
         .send()
         .await
-        .map_err(|e| ClipyError::Other(format!("Failed to download {url}: {e}")))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to download {url}: {e}")))?;
     if !resp.status().is_success() {
-        return Err(ClipyError::Other(format!(
+        return Err(AcevidsError::Other(format!(
             "Download of {url} failed: HTTP {}",
             resp.status()
         )));
     }
     if resp.content_length().is_some_and(|len| len > max_bytes) {
-        return Err(ClipyError::Other(format!(
+        return Err(AcevidsError::Other(format!(
             "{url} exceeds {max_bytes} bytes"
         )));
     }
 
     let mut tmp = tempfile::Builder::new()
-        .prefix(".clipy-download-")
+        .prefix(".acevids-download-")
         .tempfile_in(dir)?;
     let mut hasher = Sha256::new();
     let mut written: u64 = 0;
     let mut stream = resp.bytes_stream();
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| ClipyError::Other(format!("Download interrupted: {e}")))?;
+        let chunk = chunk.map_err(|e| AcevidsError::Other(format!("Download interrupted: {e}")))?;
         written += chunk.len() as u64;
         if written > max_bytes {
-            return Err(ClipyError::Other(format!(
+            return Err(AcevidsError::Other(format!(
                 "{url} exceeds {max_bytes} bytes"
             )));
         }
@@ -344,12 +344,12 @@ pub(crate) async fn download_verified(
 ) -> Result<()> {
     let dir = dest
         .parent()
-        .ok_or_else(|| ClipyError::Other(format!("No parent for {}", dest.display())))?;
+        .ok_or_else(|| AcevidsError::Other(format!("No parent for {}", dest.display())))?;
     debug!("Downloading {} -> {:?}", url, dest);
     let (tmp, actual) = download_to_temp(client, url, dir, max_bytes).await?;
     verify_sha256(&actual, expected_sha256, url)?;
     tmp.persist(dest)
-        .map_err(|e| ClipyError::Other(format!("Failed to install {}: {}", dest.display(), e)))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to install {}: {}", dest.display(), e)))?;
     Ok(())
 }
 
@@ -379,18 +379,18 @@ fn write_entry(reader: &mut dyn std::io::Read, dest_dir: &Path, name: &str) -> R
     // SECURITY: `name` comes from the selector, which only returns fixed
     // basenames; reject anything with separators or traversal regardless.
     if name.is_empty() || name.contains(['/', '\\']) || name == "." || name == ".." {
-        return Err(ClipyError::Other(format!(
+        return Err(AcevidsError::Other(format!(
             "Unsafe archive entry name {name:?}"
         )));
     }
     let dest = dest_dir.join(name);
     let mut tmp = tempfile::Builder::new()
-        .prefix(".clipy-extract-")
+        .prefix(".acevids-extract-")
         .tempfile_in(dest_dir)?;
     std::io::copy(reader, &mut tmp)?;
     tmp.as_file().sync_all()?;
     tmp.persist(&dest)
-        .map_err(|e| ClipyError::Other(format!("Failed to install {}: {}", dest.display(), e)))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to install {}: {}", dest.display(), e)))?;
     set_executable(&dest)?;
     Ok(dest)
 }
@@ -406,12 +406,12 @@ pub(crate) fn extract_zip(
 ) -> Result<Vec<PathBuf>> {
     let file = std::fs::File::open(archive)?;
     let mut zip = zip::ZipArchive::new(file)
-        .map_err(|e| ClipyError::Other(format!("Failed to read zip archive: {}", e)))?;
+        .map_err(|e| AcevidsError::Other(format!("Failed to read zip archive: {}", e)))?;
     let mut written = Vec::new();
     for i in 0..zip.len() {
         let mut entry = zip
             .by_index(i)
-            .map_err(|e| ClipyError::Other(format!("Failed to read zip entry: {}", e)))?;
+            .map_err(|e| AcevidsError::Other(format!("Failed to read zip entry: {}", e)))?;
         if !entry.is_file() || entry.is_symlink() {
             continue;
         }
@@ -436,16 +436,16 @@ pub(crate) fn extract_tar_xz(
     let mut written = Vec::new();
     for entry in tar
         .entries()
-        .map_err(|e| ClipyError::Other(format!("Failed to read tar entries: {}", e)))?
+        .map_err(|e| AcevidsError::Other(format!("Failed to read tar entries: {}", e)))?
     {
         let mut entry =
-            entry.map_err(|e| ClipyError::Other(format!("Failed to read tar entry: {}", e)))?;
+            entry.map_err(|e| AcevidsError::Other(format!("Failed to read tar entry: {}", e)))?;
         if !entry.header().entry_type().is_file() {
             continue;
         }
         let path = entry
             .path()
-            .map_err(|e| ClipyError::Other(format!("Bad tar entry path: {}", e)))?
+            .map_err(|e| AcevidsError::Other(format!("Bad tar entry path: {}", e)))?
             .to_string_lossy()
             .into_owned();
         let Some(name) = select(&path) else {
@@ -596,7 +596,7 @@ async fn install_ffmpeg_into(
     info!("Installing FFmpeg for {os}/{arch}");
     std::fs::create_dir_all(binaries_dir)?;
     let source = ffmpeg_source(os, arch).ok_or_else(|| {
-        ClipyError::Other(format!(
+        AcevidsError::Other(format!(
             "No verified FFmpeg build for {os}/{arch}; install ffmpeg on PATH"
         ))
     })?;
@@ -607,7 +607,7 @@ async fn install_ffmpeg_into(
             let sums =
                 fetch_text(&client, &format!("{}/checksums.sha256", src.btbn_latest)).await?;
             let expected = parse_checksum_file(&sums, asset).ok_or_else(|| {
-                ClipyError::Other(format!("{asset} missing from checksums.sha256"))
+                AcevidsError::Other(format!("{asset} missing from checksums.sha256"))
             })?;
             let archive = download_archive(
                 &client,
@@ -627,7 +627,7 @@ async fn install_ffmpeg_into(
                 }
             })
             .await
-            .map_err(|e| ClipyError::Other(format!("Extraction task failed: {}", e)))??;
+            .map_err(|e| AcevidsError::Other(format!("Extraction task failed: {}", e)))??;
             debug!("Extracted {:?}", written);
         }
         FfmpegSource::MartinRiedl { arch } => {
@@ -636,26 +636,26 @@ async fn install_ffmpeg_into(
                     resolve_redirect(&martin_riedl_latest_url(&src.martin_riedl, arch, tool))
                         .await?;
                 let url = martin_riedl_resolve(&src.martin_riedl, &location).ok_or_else(|| {
-                    ClipyError::Other(format!("Unexpected FFmpeg redirect: {location}"))
+                    AcevidsError::Other(format!("Unexpected FFmpeg redirect: {location}"))
                 })?;
                 let sums = fetch_text(&client, &format!("{url}.sha256")).await?;
                 let zip_name = format!("{tool}.zip");
                 let expected = parse_checksum_file(&sums, &zip_name).ok_or_else(|| {
-                    ClipyError::Other(format!("No checksum for {zip_name} at {url}.sha256"))
+                    AcevidsError::Other(format!("No checksum for {zip_name} at {url}.sha256"))
                 })?;
                 let archive = download_archive(&client, &url, binaries_dir, &expected).await?;
                 let dir = binaries_dir.to_path_buf();
                 let path = archive.path().to_path_buf();
                 tokio::task::spawn_blocking(move || extract_zip(&path, &dir, &ffmpeg_entry_dest))
                     .await
-                    .map_err(|e| ClipyError::Other(format!("Extraction task failed: {}", e)))??;
+                    .map_err(|e| AcevidsError::Other(format!("Extraction task failed: {}", e)))??;
             }
         }
     }
 
     let target = binaries_dir.join(exe_name("ffmpeg"));
     if !target.exists() {
-        return Err(ClipyError::Other(
+        return Err(AcevidsError::Other(
             "FFmpeg binary not found in downloaded archive".into(),
         ));
     }
@@ -699,7 +699,7 @@ pub(crate) async fn install_ytdlp_into(
     info!("Installing yt-dlp for {os}/{arch}");
     std::fs::create_dir_all(binaries_dir)?;
     let asset = ytdlp_asset_name(os, arch).ok_or_else(|| {
-        ClipyError::Other(format!(
+        AcevidsError::Other(format!(
             "No yt-dlp build for {os}/{arch}; install it on PATH"
         ))
     })?;
@@ -708,10 +708,10 @@ pub(crate) async fn install_ytdlp_into(
     let releases = &src.ytdlp_releases;
     let location = resolve_redirect(&format!("{releases}/latest")).await?;
     let tag = parse_release_tag(&location)
-        .ok_or_else(|| ClipyError::Other(format!("Unexpected yt-dlp redirect: {location}")))?;
+        .ok_or_else(|| AcevidsError::Other(format!("Unexpected yt-dlp redirect: {location}")))?;
     let sums = fetch_text(&client, &format!("{releases}/download/{tag}/SHA2-256SUMS")).await?;
     let expected = parse_checksum_file(&sums, asset)
-        .ok_or_else(|| ClipyError::Other(format!("{asset} missing from SHA2-256SUMS ({tag})")))?;
+        .ok_or_else(|| AcevidsError::Other(format!("{asset} missing from SHA2-256SUMS ({tag})")))?;
 
     let target = binaries_dir.join(exe_name("yt-dlp"));
     download_verified(
@@ -741,7 +741,7 @@ pub struct YtdlpUpdateStatus {
     pub latest: String,
     /// Whether `latest` is newer than `current`.
     pub update_available: bool,
-    /// Whether this is Clipy's own copy, which Clipy may replace. A yt-dlp
+    /// Whether this is ACEVIDS's own copy, which ACEVIDS may replace. A yt-dlp
     /// found on PATH belongs to the user's package manager.
     pub managed: bool,
 }
@@ -776,10 +776,10 @@ fn is_newer_ytdlp(latest: &str, current: &str) -> bool {
 async fn latest_ytdlp_tag(src: &Sources) -> Result<String> {
     let location = resolve_redirect(&format!("{}/latest", src.ytdlp_releases)).await?;
     parse_release_tag(&location)
-        .ok_or_else(|| ClipyError::Other(format!("Unexpected yt-dlp redirect: {location}")))
+        .ok_or_else(|| AcevidsError::Other(format!("Unexpected yt-dlp redirect: {location}")))
 }
 
-/// Compare the yt-dlp Clipy would run against the latest release.
+/// Compare the yt-dlp ACEVIDS would run against the latest release.
 pub(crate) async fn ytdlp_update_status_in(
     src: &Sources,
     binaries_dir: &Path,
@@ -792,7 +792,7 @@ pub(crate) async fn ytdlp_update_status_in(
             .and_then(|out| parse_ytdlp_version(&out))
     })
     .await
-    .map_err(|e| ClipyError::Other(format!("Version check failed: {e}")))?;
+    .map_err(|e| AcevidsError::Other(format!("Version check failed: {e}")))?;
     let latest = latest_ytdlp_tag(src).await?;
     let update_available = current
         .as_deref()
@@ -810,7 +810,7 @@ pub async fn check_ytdlp_update<R: Runtime>(app: &AppHandle<R>) -> Result<YtdlpU
     ytdlp_update_status_in(&Sources::upstream(), &paths::get_binaries_dir(app)?).await
 }
 
-/// Update Clipy's own yt-dlp through the same checksum-verified installer
+/// Update ACEVIDS's own yt-dlp through the same checksum-verified installer
 /// used for first installs. Returns the installed version.
 pub(crate) async fn update_ytdlp_in(
     src: &Sources,
@@ -821,10 +821,10 @@ pub(crate) async fn update_ytdlp_in(
     let status = ytdlp_update_status_in(src, binaries_dir).await?;
     if !status.managed {
         return Err(match status.current {
-            Some(_) => ClipyError::Other(
-                "yt-dlp was installed outside Clipy (found on PATH); update it with the tool you installed it with".into(),
+            Some(_) => AcevidsError::Other(
+                "yt-dlp was installed outside ACEVIDS (found on PATH); update it with the tool you installed it with".into(),
             ),
-            None => ClipyError::BinaryNotFound("yt-dlp is not installed".into()),
+            None => AcevidsError::BinaryNotFound("yt-dlp is not installed".into()),
         });
     }
     if !status.update_available {
@@ -857,7 +857,7 @@ fn update_check_due(marker: &Path, now: SystemTime, interval: Duration) -> bool 
 }
 
 /// Startup updater: at most once per [`YTDLP_UPDATE_INTERVAL`], replace
-/// Clipy's own yt-dlp when a newer release exists. Never touches a yt-dlp
+/// ACEVIDS's own yt-dlp when a newer release exists. Never touches a yt-dlp
 /// on PATH. Returns the new version when it updated.
 pub(crate) async fn auto_update_ytdlp_in(
     src: &Sources,
@@ -1065,18 +1065,18 @@ mod tests {
     #[test]
     fn locating_binaries() {
         let dir = tempfile::tempdir().unwrap();
-        let local = dir.path().join(exe_name("clipy-fake-tool"));
+        let local = dir.path().join(exe_name("acevids-fake-tool"));
         std::fs::write(&local, b"").unwrap();
         assert_eq!(
-            find_binary(dir.path(), "clipy-fake-tool"),
+            find_binary(dir.path(), "acevids-fake-tool"),
             Some(local.clone())
         );
         assert_eq!(
-            find_binary(dir.path(), "clipy-definitely-missing-tool"),
+            find_binary(dir.path(), "acevids-definitely-missing-tool"),
             None
         );
         assert_eq!(run_version(&dir.path().join("nope"), "--version"), None);
-        let probe = probe_binary(dir.path(), "clipy-fake-tool", "-v", parse_ytdlp_version);
+        let probe = probe_binary(dir.path(), "acevids-fake-tool", "-v", parse_ytdlp_version);
         assert_eq!(probe, (false, None, None));
 
         let listing = format!("\n{}\nC:/nope\n", local.display());
@@ -1258,7 +1258,7 @@ mod tests {
     fn leftovers(dir: &Path) -> Vec<String> {
         dir_names(dir)
             .into_iter()
-            .filter(|n| n.starts_with(".clipy-"))
+            .filter(|n| n.starts_with(".acevids-"))
             .collect()
     }
 
@@ -1363,7 +1363,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn update_replaces_only_clipys_own_copy_and_verifies_it() {
+    async fn update_replaces_only_acevids_own_copy_and_verifies_it() {
         let server = TestServer::start().await;
         let body = b"#!/bin/sh\necho 2099.01.01\n";
         serve_ytdlp_release(&server, "2099.01.01", body, &sha256_hex(body));
@@ -1373,11 +1373,11 @@ mod tests {
         let err = update_ytdlp_in(&src, empty.path(), "linux", "x86_64")
             .await
             .unwrap_err();
-        // Either "installed outside Clipy" (a yt-dlp on PATH) or not managed
-        // at all; never an install into a directory Clipy doesn't own.
+        // Either "installed outside ACEVIDS" (a yt-dlp on PATH) or not managed
+        // at all; never an install into a directory ACEVIDS doesn't own.
         let msg = err.to_string();
         assert!(
-            msg.contains("outside Clipy") || msg.contains("not installed"),
+            msg.contains("outside ACEVIDS") || msg.contains("not installed"),
             "{msg}"
         );
         assert!(dir_names(empty.path()).is_empty());

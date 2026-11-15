@@ -237,7 +237,7 @@ async fn cancel_stops_export_and_removes_output() {
     }
     request_export_cancel();
     let err = task.await.unwrap().unwrap_err();
-    assert!(matches!(err, ClipyError::ExportFailed(_)), "{err:?}");
+    assert!(matches!(err, AcevidsError::ExportFailed(_)), "{err:?}");
     assert!(!out_path.exists());
     assert!(!export_cancelled());
     let mut saw_cancelled = false;

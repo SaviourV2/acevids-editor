@@ -1,6 +1,6 @@
 //! Installer smoke-test mode.
 //!
-//! With `CLIPY_SMOKE_TEST=1`, the installed app proves it booted end to end:
+//! With `ACEVIDS_SMOKE_TEST=1`, the installed app proves it booted end to end:
 //! the frontend calls `app_ready` once React has mounted, which exits the
 //! process with code 0. A watchdog exits non-zero if that never happens (blank
 //! webview, broken asset bundle, setup panic swallowed by the event loop), so
@@ -10,7 +10,7 @@ use std::time::Duration;
 use tracing::error;
 
 /// Environment variable that enables smoke-test mode.
-pub const SMOKE_ENV: &str = "CLIPY_SMOKE_TEST";
+pub const SMOKE_ENV: &str = "ACEVIDS_SMOKE_TEST";
 
 /// How long the frontend has to report ready before the watchdog fails the run.
 pub const READY_TIMEOUT: Duration = Duration::from_secs(90);
