@@ -15,6 +15,37 @@ own release history and keep its name. The format follows
   new data folder, the default download folder is `ACEVIDS`, and project
   files use the `.acevids` extension.
 
+- A project takes the frame size and frame rate of the first video added to
+  it, so a vertical clip gives a vertical project and "Original" in the export
+  dialog means the video's own size. The 1080p, 720p and other presets follow
+  the project's orientation (1080p on a vertical project is 1080x1920), and
+  the preview is shaped like the project.
+- Text overlays keep their size relative to the frame at every export
+  resolution, matching the preview.
+
+### Fixed
+
+- Export no longer fails when a clip has no audio track, such as drone
+  footage. The rest of the timeline keeps its sound and the silent part is
+  exported silent.
+- Export no longer fails on computers without the graphics hardware that
+  FFmpeg was built for. Hardware acceleration is only used with an encoder
+  that works on the machine, and an export that still fails with it is run
+  again in software.
+- Each clip's sound is exported under its own picture. Before, the sound of
+  every clip started at the beginning of the video and played on top of the
+  others.
+- Clips are exported in timeline order and gaps between them are kept as
+  black, instead of clips being joined in the order they were added.
+- Still images last as long as their clip instead of a single frame.
+- The frame rate chosen in the export dialog is now the one the video is
+  rendered at.
+- A failed export shows the reason from FFmpeg instead of "[object Object]",
+  and no longer leaves an empty file behind.
+- Videos added from the library get their real length; files imported from
+  disk used to appear as one-minute clips.
+- Rotated phone videos report their upright size.
+
 ### Removed
 
 - The in-app updater, its "Check for Updates" button and the "Auto-check for

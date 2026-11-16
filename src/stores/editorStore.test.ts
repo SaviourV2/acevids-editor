@@ -476,6 +476,20 @@ describe("misc actions", () => {
     expect(useEditorStore.getState().saveProject()).toBeNull();
     useEditorStore.getState().setProjectName("x");
     expect(useEditorStore.getState().project).toBeNull();
+    useEditorStore.getState().setCanvas({ width: 1080, height: 1920, fps: 60 });
+    expect(useEditorStore.getState().project).toBeNull();
+  });
+
+  it("setCanvas resizes the project and keeps the sample rate", () => {
+    useEditorStore.getState().saveProject();
+    useEditorStore.getState().setCanvas({ width: 1080, height: 1920, fps: 60 });
+    expect(useEditorStore.getState().project!.settings).toEqual({
+      width: 1080,
+      height: 1920,
+      fps: 60,
+      sampleRate: 48000,
+    });
+    expect(useEditorStore.getState().isDirty).toBe(true);
   });
 
   it("track and clip actions are no-ops without a project", () => {

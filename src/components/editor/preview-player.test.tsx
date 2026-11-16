@@ -67,6 +67,22 @@ describe("PreviewPlayer", () => {
     expect(screen.getByText("No preview")).toBeInTheDocument();
   });
 
+  it("shapes the frame like the project canvas", () => {
+    render(<PreviewPlayer />);
+    const frame = screen.getByTestId("preview");
+    expect(frame.style.aspectRatio).toBe("1920 / 1080");
+    expect(frame.classList.contains("w-full")).toBe(true);
+
+    // A vertical project fills the height instead of sitting in a 16:9 box.
+    act(() => useEditorStore.getState().setCanvas({ width: 1080, height: 1920, fps: 60 }));
+    expect(frame.style.aspectRatio).toBe("1080 / 1920");
+    expect(frame.classList.contains("h-full")).toBe(true);
+    expect(frame.classList.contains("w-full")).toBe(false);
+
+    act(() => loadEditor(null));
+    expect(screen.getByTestId("preview").style.aspectRatio).toBe("16 / 9");
+  });
+
   it("loads the active video via mediaSrc and syncs time, volume and speed", () => {
     render(<PreviewPlayer />);
     const v = video();

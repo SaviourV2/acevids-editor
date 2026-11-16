@@ -24,10 +24,12 @@ use crate::models::project::{
 use crate::services::binary;
 use crate::utils::path_policy;
 use crate::utils::process::tokio_command;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, OnceLock};
+use std::time::Duration;
 use tauri::{AppHandle, Runtime};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::{mpsc, Notify};
@@ -81,9 +83,10 @@ pub fn validate_input(path: &str) -> Result<PathBuf> {
 pub struct VideoMetadata {
     /// Duration in seconds.
     pub duration: f64,
-    /// Width of the first video stream in pixels.
+    /// Display width of the first video stream in pixels (after applying any
+    /// rotation metadata, which is how ffmpeg and players present the frame).
     pub width: u32,
-    /// Height of the first video stream in pixels.
+    /// Display height of the first video stream in pixels (see `width`).
     pub height: u32,
     /// Frame rate of the first video stream.
     pub fps: f64,
@@ -184,9 +187,19 @@ fn parse_ffprobe_output(output: &str) -> Result<VideoMetadata> {
     for stream in streams {
         let codec_type = stream["codec_type"].as_str().unwrap_or("");
 
-        if codec_type == "video" && metadata.video_codec.is_empty() {
-            metadata.width = stream["width"].as_u64().unwrap_or(0) as u32;
-            metadata.height = stream["height"].as_u64().unwrap_or(0) as u32;
+        // Cover art / thumbnails are video streams too; never let one stand in
+        // for the real picture.
+        let attached_pic = stream["disposition"]["attached_pic"].as_u64() == Some(1);
+        if codec_type == "video" && metadata.video_codec.is_empty() && !attached_pic {
+            let coded_w = stream["width"].as_u64().unwrap_or(0) as u32;
+            let coded_h = stream["height"].as_u64().unwrap_or(0) as u32;
+            // Phones record sideways and store a rotation; ffmpeg rotates on
+            // decode, so the frame the filter graph sees is the rotated one.
+            (metadata.width, metadata.height) = if is_quarter_turn(stream_rotation(stream)) {
+                (coded_h, coded_w)
+            } else {
+                (coded_w, coded_h)
+            };
             metadata.video_codec = stream["codec_name"].as_str().unwrap_or("").to_string();
 
             if let Some(fps_str) = stream["r_frame_rate"].as_str() {
@@ -205,6 +218,33 @@ fn parse_ffprobe_output(output: &str) -> Result<VideoMetadata> {
     }
 
     Ok(metadata)
+}
+
+/// Rotation in degrees stored on a video stream, from the display-matrix side
+/// data (current ffmpeg) or the legacy `rotate` tag. `0.0` when absent.
+fn stream_rotation(stream: &serde_json::Value) -> f64 {
+    let from_side_data = stream["side_data_list"].as_array().and_then(|list| {
+        list.iter().find_map(|d| {
+            let r = &d["rotation"];
+            r.as_f64()
+                .or_else(|| r.as_str().and_then(|s| s.parse().ok()))
+        })
+    });
+    let from_tag = || {
+        stream["tags"]["rotate"]
+            .as_str()
+            .and_then(|s| s.parse::<f64>().ok())
+    };
+    from_side_data.or_else(from_tag).unwrap_or(0.0)
+}
+
+/// Whether `degrees` turns the frame onto its side (90 or 270, either sign).
+fn is_quarter_turn(degrees: f64) -> bool {
+    if !degrees.is_finite() {
+        return false;
+    }
+    let turned = (degrees.round() as i64).rem_euclid(180);
+    turned == 90
 }
 
 /// Arguments to grab one frame of `input` at `time` seconds into `output`,
@@ -378,13 +418,24 @@ struct Canvas {
     height: u32,
 }
 
+impl Canvas {
+    /// A canvas encoders accept: yuv420p needs even dimensions.
+    fn new(width: u32, height: u32) -> Self {
+        Canvas {
+            width: (width.max(2) / 2) * 2,
+            height: (height.max(2) / 2) * 2,
+        }
+    }
+}
+
 /// Resolve the output canvas from settings/project. Accepts "WxH", named ids
-/// ("1080p"), or "original" (falls back to the project settings).
+/// ("1080p"), or "original" (the project canvas, which the editor sizes to the
+/// first video added).
+///
+/// Named presets describe a landscape frame; for a portrait project they are
+/// turned on their side, so "1080p" on a vertical video means 1080x1920.
 fn resolve_canvas(project: &Project, settings: &ExportSettings) -> Canvas {
-    let from_project = Canvas {
-        width: project.settings.width.max(2),
-        height: project.settings.height.max(2),
-    };
+    let from_project = Canvas::new(project.settings.width, project.settings.height);
 
     let res = settings.resolution.trim().to_lowercase();
     if res.is_empty() || res == "original" || res == "source" {
@@ -395,37 +446,24 @@ fn resolve_canvas(project: &Project, settings: &ExportSettings) -> Canvas {
     if let Some((w, h)) = res.split_once('x') {
         if let (Ok(w), Ok(h)) = (w.trim().parse::<u32>(), h.trim().parse::<u32>()) {
             if w >= 2 && h >= 2 {
-                return Canvas {
-                    width: w,
-                    height: h,
-                };
+                return Canvas::new(w, h);
             }
         }
     }
 
     // Named presets
-    match res.as_str() {
-        "2160p" | "4k" => Canvas {
-            width: 3840,
-            height: 2160,
-        },
-        "1440p" | "2k" => Canvas {
-            width: 2560,
-            height: 1440,
-        },
-        "1080p" | "fhd" => Canvas {
-            width: 1920,
-            height: 1080,
-        },
-        "720p" | "hd" => Canvas {
-            width: 1280,
-            height: 720,
-        },
-        "480p" | "sd" => Canvas {
-            width: 854,
-            height: 480,
-        },
-        _ => from_project,
+    let (long, short) = match res.as_str() {
+        "2160p" | "4k" => (3840, 2160),
+        "1440p" | "2k" => (2560, 1440),
+        "1080p" | "fhd" => (1920, 1080),
+        "720p" | "hd" => (1280, 720),
+        "480p" | "sd" => (854, 480),
+        _ => return from_project,
+    };
+    if project.settings.height > project.settings.width {
+        Canvas::new(short, long)
+    } else {
+        Canvas::new(long, short)
     }
 }
 
@@ -438,6 +476,109 @@ struct PlannedClip<'a> {
     is_audio_track: bool,
     track_muted: bool,
     track_volume: f64,
+    /// Whether the source has an audio stream. Assumed until probed, so a
+    /// failed probe behaves like the pre-probe exporter.
+    has_audio: bool,
+    /// Real length of the source in seconds, when the probe reported one.
+    source_duration: Option<f64>,
+}
+
+impl PlannedClip<'_> {
+    /// Playback speed, treating nonsense values as normal speed.
+    fn speed(&self) -> f64 {
+        let speed = self.clip.properties.speed;
+        if speed.is_finite() && speed > 0.0 {
+            speed
+        } else {
+            1.0
+        }
+    }
+
+    /// The part of the source this clip plays, clamped to the source's real
+    /// length so a clip that claims more than the file holds cannot shift
+    /// everything after it.
+    fn source_range(&self) -> (f64, f64) {
+        let start = finite_or(self.clip.source_start, 0.0).max(0.0);
+        let mut end = finite_or(self.clip.source_end, start).max(start);
+        if let Some(total) = self.source_duration {
+            if total > start {
+                end = end.min(total);
+            }
+        }
+        (start, end)
+    }
+
+    /// Seconds on the timeline, from the clip's own start and end.
+    fn timeline_duration(&self) -> f64 {
+        (finite_or(self.clip.end_time, 0.0) - finite_or(self.clip.start_time, 0.0)).max(0.0)
+    }
+
+    /// Seconds this clip contributes to the output.
+    fn output_duration(&self) -> f64 {
+        if self.clip.clip_type == ClipType::Image {
+            return self.timeline_duration();
+        }
+        let (start, end) = self.source_range();
+        (end - start) / self.speed()
+    }
+
+    /// Whether this clip puts a picture on the canvas.
+    fn is_visual(&self) -> bool {
+        self.is_video_track && matches!(self.clip.clip_type, ClipType::Video | ClipType::Image)
+    }
+
+    /// Whether this clip contributes sound to the mix.
+    fn is_audible(&self) -> bool {
+        let wants_audio = (self.is_audio_track && self.clip.clip_type == ClipType::Audio)
+            || (self.is_video_track && self.clip.clip_type == ClipType::Video);
+        wants_audio && !self.track_muted && self.has_audio
+    }
+}
+
+/// What a probe learned about one export input.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct SourceInfo {
+    has_audio: bool,
+    duration: Option<f64>,
+}
+
+impl From<&VideoMetadata> for SourceInfo {
+    fn from(meta: &VideoMetadata) -> Self {
+        SourceInfo {
+            has_audio: meta.has_audio,
+            duration: (meta.duration.is_finite() && meta.duration > 0.0).then_some(meta.duration),
+        }
+    }
+}
+
+/// Probe every audio/video input once (clips cut from the same file share a
+/// probe) and record the result on the plan. Inputs that cannot be probed keep
+/// the plan's defaults.
+async fn probe_sources(ffprobe_path: &Path, planned: &mut [PlannedClip<'_>], inputs: &[PathBuf]) {
+    let mut seen: HashMap<&Path, Option<SourceInfo>> = HashMap::new();
+    for (p, input) in planned.iter_mut().zip(inputs) {
+        if p.clip.clip_type == ClipType::Image {
+            continue;
+        }
+        let info = match seen.get(input.as_path()) {
+            Some(known) => *known,
+            None => {
+                let probed = match probe_with(ffprobe_path, input).await {
+                    Ok(meta) => Some(SourceInfo::from(&meta)),
+                    Err(e) => {
+                        warn!("Could not probe {}: {}", input.display(), e);
+                        None
+                    }
+                };
+                seen.insert(input.as_path(), probed);
+                probed
+            }
+        };
+        if let Some(info) = info {
+            p.has_audio = info.has_audio;
+            p.source_duration = info.duration;
+        }
+    }
 }
 
 /// Flatten the project's non-text clips into ffmpeg input order: tracks
@@ -459,6 +600,8 @@ fn plan_clips(project: &Project) -> Vec<PlannedClip<'_>> {
                 is_audio_track,
                 track_muted: track.muted,
                 track_volume: track.volume,
+                has_audio: true,
+                source_duration: None,
             });
         }
     }
@@ -478,7 +621,7 @@ fn build_export_args(
     encoder: &EncoderChoice,
 ) -> Vec<String> {
     let canvas = resolve_canvas(project, settings);
-    let graph = build_filter_graph(project, planned, canvas);
+    let graph = build_filter_graph(project, planned, canvas, settings.fps.max(1));
 
     let mut args: Vec<String> = vec!["-y".to_string()];
     for input in inputs {
@@ -541,13 +684,25 @@ fn finite_or(value: f64, fallback: f64) -> f64 {
     }
 }
 
+/// Message carried by the error a cancelled export returns.
+const EXPORT_CANCELLED: &str = "Export cancelled";
+
+/// Whether `err` is the result of the user cancelling the export.
+fn is_cancellation(err: &AcevidsError) -> bool {
+    matches!(err, AcevidsError::ExportFailed(msg) if msg == EXPORT_CANCELLED)
+}
+
 /// Export a project to a video file.
 ///
 /// Builds a real filter graph: every visual clip is trimmed, scaled+padded to
-/// the canvas, opacity/transform applied, then concatenated in timeline order;
-/// audio clips are trimmed, volume-adjusted and mixed; text clips are drawn with
-/// `drawtext`. Encoder is chosen by hardware-accel detection with a software
-/// fallback. Progress is read from `-progress pipe:1` for reliability.
+/// the canvas, opacity/transform applied, then joined in timeline order with
+/// black filling the gaps; audible clips are trimmed, volume-adjusted, placed
+/// at their position and mixed; text clips are drawn with `drawtext`.
+///
+/// A hardware encoder is used when requested and one actually works on this
+/// machine. If the hardware export still fails, it is run again in software
+/// before anything is reported as failed, so a driver or GPU quirk costs time
+/// rather than the export. Progress is read from `-progress pipe:1`.
 ///
 /// The caller owns cancel-flag reset (see [`reset_export_cancel`]) so a cancel
 /// issued between claiming the export slot and reaching this function is not
@@ -564,7 +719,48 @@ pub async fn export_project<R: Runtime>(
     let ffmpeg_path = binary::get_ffmpeg_path(app)?;
     debug!("Using FFmpeg executable: {:?}", ffmpeg_path);
     let encoder = select_video_encoder(app, settings.use_hardware_acceleration).await;
-    run_export(&ffmpeg_path, &encoder, project, settings, progress_tx).await
+    export_with_fallback(&ffmpeg_path, encoder, project, settings, progress_tx).await
+}
+
+/// Run the export with `encoder`; if that is a hardware encoder and the run
+/// fails for any reason but cancellation, run it once more in software.
+async fn export_with_fallback(
+    ffmpeg_path: &Path,
+    encoder: EncoderChoice,
+    project: &Project,
+    settings: &ExportSettings,
+    progress_tx: mpsc::Sender<ExportProgress>,
+) -> Result<PathBuf> {
+    if !encoder.hardware {
+        return run_export(ffmpeg_path, &encoder, project, settings, progress_tx, true).await;
+    }
+    let first = run_export(
+        ffmpeg_path,
+        &encoder,
+        project,
+        settings,
+        progress_tx.clone(),
+        false,
+    )
+    .await;
+    match first {
+        Err(err) if !is_cancellation(&err) => {
+            warn!(
+                "Export with hardware encoder {} failed ({}); retrying in software",
+                encoder.name, err
+            );
+            run_export(
+                ffmpeg_path,
+                &EncoderChoice::software(),
+                project,
+                settings,
+                progress_tx,
+                true,
+            )
+            .await
+        }
+        other => other,
+    }
 }
 
 /// Validate the export output path and every clip source. Returns the
@@ -584,15 +780,23 @@ fn validate_export_paths(
 
 /// Run an export with an explicit ffmpeg binary and encoder (no `AppHandle`
 /// needed, so it is directly testable).
+///
+/// `report_failure` is false for an attempt that will be retried: its failure
+/// is returned but not announced on `progress_tx`, so listeners only ever see
+/// the outcome of the last attempt.
 async fn run_export(
     ffmpeg_path: &Path,
     encoder: &EncoderChoice,
     project: &Project,
     settings: &ExportSettings,
     progress_tx: mpsc::Sender<ExportProgress>,
+    report_failure: bool,
 ) -> Result<PathBuf> {
     let (output, inputs) = validate_export_paths(project, settings)?;
-    let planned = plan_clips(project);
+    let mut planned = plan_clips(project);
+    // Learn which inputs really have sound and how long they are; the filter
+    // graph must not reference an audio stream that is not there.
+    probe_sources(&ffprobe_beside(ffmpeg_path), &mut planned, &inputs).await;
 
     let fps = settings.fps.max(1) as f64;
     let total_frames = (finite_or(project.duration, 0.0).max(0.0) * fps).ceil() as u64;
@@ -718,37 +922,34 @@ async fn run_export(
                 ExportStatus::Cancelled,
             ))
             .await;
-        return Err(AcevidsError::ExportFailed("Export cancelled".into()));
+        return Err(AcevidsError::ExportFailed(EXPORT_CANCELLED.into()));
     }
 
     if !status.success() {
+        // The log keeps ffmpeg's own words; people get the line that matters.
         warn!("ffmpeg export failed: {}", stderr_tail);
-        let _ = progress_tx
-            .send(ExportProgress {
-                error: Some(if stderr_tail.is_empty() {
-                    "Export failed".into()
-                } else {
-                    stderr_tail.clone()
-                }),
-                ..make_progress(
-                    project,
-                    0.0,
-                    last_frame,
-                    total_frames,
-                    start_time.elapsed().as_secs(),
-                    0,
-                    ExportStatus::Failed,
-                )
-            })
-            .await;
-        return Err(AcevidsError::FFmpeg(format!(
-            "Export failed: {}",
-            if stderr_tail.is_empty() {
-                "unknown error"
-            } else {
-                &stderr_tail
-            }
-        )));
+        let reason = summarize_ffmpeg_error(&stderr_tail);
+        // ffmpeg can leave an empty or truncated file behind.
+        let _ = std::fs::remove_file(&output);
+        if report_failure {
+            let _ = progress_tx
+                .send(ExportProgress {
+                    error: Some(reason.clone().unwrap_or_else(|| "Export failed".into())),
+                    ..make_progress(
+                        project,
+                        0.0,
+                        last_frame,
+                        total_frames,
+                        start_time.elapsed().as_secs(),
+                        0,
+                        ExportStatus::Failed,
+                    )
+                })
+                .await;
+        }
+        return Err(AcevidsError::FFmpeg(
+            reason.unwrap_or_else(|| "unknown error".into()),
+        ));
     }
 
     let _ = progress_tx
@@ -765,6 +966,55 @@ async fn run_export(
 
     info!("Export completed: {}", output.display());
     Ok(output)
+}
+
+/// Words that mark the line of ffmpeg's stderr explaining a failure.
+const FFMPEG_ERROR_MARKERS: &[&str] = &[
+    "error",
+    "invalid",
+    "no such file",
+    "not found",
+    "unable to",
+    "cannot",
+    "could not",
+    "failed",
+    "matches no streams",
+    "permission denied",
+    "unknown encoder",
+    "unrecognized option",
+];
+
+/// The line of ffmpeg's stderr that best explains why it failed, without the
+/// `[component @ 0x...]` prefix. `None` when ffmpeg said nothing.
+///
+/// ffmpeg ends a failed run with generic lines ("Conversion failed!") after the
+/// one that names the cause, so this looks from the end for the last line that
+/// reads like an error and falls back to the last line of any kind.
+fn summarize_ffmpeg_error(stderr_tail: &str) -> Option<String> {
+    let lines: Vec<&str> = stderr_tail
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
+    let explains = |l: &str| {
+        let lower = l.to_ascii_lowercase();
+        l != "Conversion failed!"
+            && !l.starts_with("frame=")
+            && FFMPEG_ERROR_MARKERS.iter().any(|m| lower.contains(m))
+    };
+    let line = lines
+        .iter()
+        .rev()
+        .find(|l| explains(l))
+        .or_else(|| lines.last())?;
+    let text = match line
+        .strip_prefix('[')
+        .and_then(|rest| rest.split_once("] "))
+    {
+        Some((_, message)) if !message.is_empty() => message,
+        _ => line,
+    };
+    Some(text.to_string())
 }
 
 /// A meaningful key from ffmpeg's `-progress` output.
@@ -833,106 +1083,132 @@ struct FilterGraph {
 }
 
 /// Build a real ffmpeg `-filter_complex` graph from the project timeline.
-fn build_filter_graph(project: &Project, planned: &[PlannedClip], canvas: Canvas) -> FilterGraph {
+///
+/// Picture: the visual clips are laid end to end in timeline order, with black
+/// filling any gap between them, so the output keeps the timeline's timing.
+/// Sound: every audible clip is delayed to where it sits in the output and the
+/// results are mixed, so each clip is heard under its own picture.
+fn build_filter_graph(
+    project: &Project,
+    planned: &[PlannedClip],
+    canvas: Canvas,
+    fps: u32,
+) -> FilterGraph {
     let mut parts: Vec<String> = Vec::new();
     let mut video_labels: Vec<String> = Vec::new();
-    let mut audio_labels: Vec<String> = Vec::new();
+    // Audio chains, each with where it starts and ends in the output (seconds).
+    let mut audio: Vec<(String, f64)> = Vec::new();
 
-    for p in planned {
+    // Visual clips in the order they play. The sort is stable, so clips that
+    // start together keep their track order.
+    let mut visual: Vec<&PlannedClip> = planned.iter().filter(|p| p.is_visual()).collect();
+    visual.sort_by(|a, b| {
+        finite_or(a.clip.start_time, 0.0).total_cmp(&finite_or(b.clip.start_time, 0.0))
+    });
+
+    // Gaps shorter than half a frame are rounding noise, not empty timeline.
+    let min_gap = 0.5 / f64::from(fps);
+    // Seconds of output produced so far, and the timeline time that covers.
+    let mut out_pos = 0.0_f64;
+    let mut timeline_pos = 0.0_f64;
+
+    for p in &visual {
         let clip = p.clip;
-        let speed = if clip.properties.speed > 0.0 {
-            clip.properties.speed
-        } else {
-            1.0
-        };
-
-        // Video / image clips on a visual track -> trim, scale, pad, opacity.
-        if p.is_video_track && matches!(clip.clip_type, ClipType::Video | ClipType::Image) {
-            let label = format!("v{}", p.input_idx);
-            let mut chain = format!("[{}:v]", p.input_idx);
-
-            if clip.clip_type == ClipType::Image {
-                // Images have no timeline; just scale/pad.
-            } else {
-                chain.push_str(&format!(
-                    "trim=start={}:end={},setpts=PTS-STARTPTS,",
-                    clip.source_start, clip.source_end
-                ));
-                if (speed - 1.0).abs() > f64::EPSILON {
-                    chain.push_str(&format!("setpts={}*PTS,", 1.0 / speed));
-                }
-            }
-
-            // Transform scale is applied to the source before fitting to canvas so
-            // that scaling >1 zooms in and <1 shrinks within the frame.
-            let t = &clip.properties.transform;
-            let sx = if t.scale_x > 0.0 { t.scale_x } else { 1.0 };
-            let sy = if t.scale_y > 0.0 { t.scale_y } else { 1.0 };
-            if (sx - 1.0).abs() > f64::EPSILON || (sy - 1.0).abs() > f64::EPSILON {
-                chain.push_str(&format!("scale=iw*{sx}:ih*{sy},"));
-            }
-
-            chain.push_str(&format!(
-                "scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps={fps},format=yuv420p",
+        let gap = finite_or(clip.start_time, 0.0) - timeline_pos;
+        if gap > min_gap {
+            let label = format!("gap{}", video_labels.len());
+            parts.push(format!(
+                "color=c=black:s={w}x{h}:r={fps}:d={gap},format=yuv420p,setsar=1[{label}]",
                 w = canvas.width,
                 h = canvas.height,
-                fps = project.settings.fps
             ));
-
-            // Rotation (degrees -> radians). Applied after fit so the whole frame rotates.
-            if let Some(rot) = build_rotate(t) {
-                chain.push_str(&format!(",{rot}"));
-            }
-
-            // Color/effect filters (eq/hue/blur/unsharp) from the clip.
-            let fstr = build_filters_string(&clip.properties.filters);
-            if !fstr.is_empty() {
-                chain.push(',');
-                chain.push_str(&fstr);
-            }
-
-            // Fade in/out timed to the clip's on-timeline duration.
-            let clip_dur = (clip.end_time - clip.start_time).max(0.0);
-            if let Some(fade) =
-                build_fade(clip.properties.fade_in, clip.properties.fade_out, clip_dur)
-            {
-                chain.push(',');
-                chain.push_str(&fade);
-            }
-
-            let opacity = clip.properties.opacity.clamp(0.0, 1.0);
-            if opacity < 1.0 {
-                chain.push_str(&format!(",format=yuva420p,colorchannelmixer=aa={opacity}"));
-            }
-
-            chain.push_str(&format!("[{}]", label));
-            parts.push(chain);
             video_labels.push(label);
+            out_pos += gap;
+        }
+        timeline_pos = timeline_pos.max(finite_or(clip.end_time, 0.0));
+
+        let label = format!("v{}", p.input_idx);
+        let mut chain = format!("[{}:v]", p.input_idx);
+        let duration = p.output_duration();
+
+        if clip.clip_type == ClipType::Image {
+            // A still is a single frame; hold it for as long as the clip lasts.
+            chain.push_str(&format!(
+                "loop=loop=-1:size=1:start=0,setpts=N/({fps}*TB),trim=duration={duration},"
+            ));
+        } else {
+            let (start, end) = p.source_range();
+            chain.push_str(&format!(
+                "trim=start={start}:end={end},setpts=PTS-STARTPTS,"
+            ));
+            let speed = p.speed();
+            if (speed - 1.0).abs() > f64::EPSILON {
+                chain.push_str(&format!("setpts={}*PTS,", 1.0 / speed));
+            }
         }
 
-        // Audio: from audio-track clips, or the audio of video clips on a video track.
-        let wants_audio = (p.is_audio_track && matches!(clip.clip_type, ClipType::Audio))
-            || (p.is_video_track && clip.clip_type == ClipType::Video);
-        if wants_audio && !p.track_muted {
-            let label = format!("a{}", p.input_idx);
-            let vol = (clip.properties.volume * p.track_volume).max(0.0);
-            let mut chain = format!(
-                "[{}:a]atrim=start={}:end={},asetpts=PTS-STARTPTS",
-                p.input_idx, clip.source_start, clip.source_end
-            );
-            if (speed - 1.0).abs() > f64::EPSILON {
-                chain.push_str(&format!(",atempo={}", clamp_atempo(speed)));
-            }
-            if (vol - 1.0).abs() > f64::EPSILON {
-                chain.push_str(&format!(",volume={vol}"));
-            }
-            chain.push_str(&format!(",aresample=async=1:first_pts=0[{}]", label));
-            parts.push(chain);
-            audio_labels.push(label);
+        // Transform scale is applied to the source before fitting to canvas so
+        // that scaling >1 zooms in and <1 shrinks within the frame.
+        let t = &clip.properties.transform;
+        let sx = if t.scale_x > 0.0 { t.scale_x } else { 1.0 };
+        let sy = if t.scale_y > 0.0 { t.scale_y } else { 1.0 };
+        if (sx - 1.0).abs() > f64::EPSILON || (sy - 1.0).abs() > f64::EPSILON {
+            chain.push_str(&format!("scale=iw*{sx}:ih*{sy},"));
         }
+
+        chain.push_str(&format!(
+            "scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps={fps},format=yuv420p",
+            w = canvas.width,
+            h = canvas.height,
+        ));
+
+        // Rotation (degrees -> radians). Applied after fit so the whole frame rotates.
+        if let Some(rot) = build_rotate(t) {
+            chain.push_str(&format!(",{rot}"));
+        }
+
+        // Color/effect filters (eq/hue/blur/unsharp) from the clip.
+        let fstr = build_filters_string(&clip.properties.filters);
+        if !fstr.is_empty() {
+            chain.push(',');
+            chain.push_str(&fstr);
+        }
+
+        // Fade in/out timed to the clip's on-timeline duration.
+        if let Some(fade) = build_fade(
+            clip.properties.fade_in,
+            clip.properties.fade_out,
+            p.timeline_duration(),
+        ) {
+            chain.push(',');
+            chain.push_str(&fade);
+        }
+
+        let opacity = clip.properties.opacity.clamp(0.0, 1.0);
+        if opacity < 1.0 {
+            chain.push_str(&format!(",format=yuva420p,colorchannelmixer=aa={opacity}"));
+        }
+
+        chain.push_str(&format!("[{}]", label));
+        parts.push(chain);
+        video_labels.push(label);
+
+        // The clip's own sound starts where its picture does.
+        if p.is_audible() {
+            let (label, end) = push_audio_chain(&mut parts, p, out_pos);
+            audio.push((label, end));
+        }
+        out_pos += duration;
     }
 
-    // Concatenate video clips in order.
+    // Clips on audio tracks play at their timeline position.
+    for p in planned.iter().filter(|p| !p.is_visual() && p.is_audible()) {
+        let start = finite_or(p.clip.start_time, 0.0).max(0.0);
+        let (label, end) = push_audio_chain(&mut parts, p, start);
+        audio.push((label, end));
+    }
+
+    // Join the picture segments.
     let mut final_video: Option<String> = None;
     if !video_labels.is_empty() {
         let inputs: String = video_labels.iter().map(|l| format!("[{}]", l)).collect();
@@ -948,7 +1224,7 @@ fn build_filter_graph(project: &Project, planned: &[PlannedClip], canvas: Canvas
         }
     }
 
-    // Overlay text clips with drawtext on top of the concatenated video.
+    // Overlay text clips with drawtext on top of the joined video.
     if let Some(base) = final_video.clone() {
         let mut current = base;
         let mut text_idx = 0;
@@ -969,18 +1245,28 @@ fn build_filter_graph(project: &Project, planned: &[PlannedClip], canvas: Canvas
         final_video = Some(current);
     }
 
-    // Mix audio tracks together.
+    // Mix the sound.
     let mut final_audio: Option<String> = None;
-    if audio_labels.len() == 1 {
-        final_audio = Some(audio_labels[0].clone());
-    } else if audio_labels.len() > 1 {
-        let inputs: String = audio_labels.iter().map(|l| format!("[{}]", l)).collect();
+    if audio.len() == 1 {
+        final_audio = Some(audio[0].0.clone());
+    } else if audio.len() > 1 {
+        let inputs: String = audio.iter().map(|(l, _)| format!("[{}]", l)).collect();
         parts.push(format!(
             "{}amix=inputs={}:normalize=0[amix]",
             inputs,
-            audio_labels.len()
+            audio.len()
         ));
         final_audio = Some("amix".to_string());
+    }
+
+    // Keep the sound as long as the picture: players and upload sites handle a
+    // short audio track badly, so pad the tail with silence.
+    if let (Some(label), Some(_)) = (final_audio.clone(), final_video.as_ref()) {
+        let audio_end = audio.iter().map(|(_, end)| *end).fold(0.0, f64::max);
+        if out_pos - audio_end > min_gap {
+            parts.push(format!("[{label}]apad=whole_dur={out_pos}[apad]"));
+            final_audio = Some("apad".to_string());
+        }
     }
 
     FilterGraph {
@@ -988,6 +1274,34 @@ fn build_filter_graph(project: &Project, planned: &[PlannedClip], canvas: Canvas
         video_label: final_video,
         audio_label: final_audio,
     }
+}
+
+/// Append the audio chain for `p`, starting `start` seconds into the output.
+/// Returns its label and where it ends in the output.
+fn push_audio_chain(parts: &mut Vec<String>, p: &PlannedClip, start: f64) -> (String, f64) {
+    let label = format!("a{}", p.input_idx);
+    let clip = p.clip;
+    let speed = p.speed();
+    let (source_start, source_end) = p.source_range();
+    let vol = (clip.properties.volume * p.track_volume).max(0.0);
+    let mut chain = format!(
+        "[{}:a]atrim=start={}:end={},asetpts=PTS-STARTPTS",
+        p.input_idx, source_start, source_end
+    );
+    if (speed - 1.0).abs() > f64::EPSILON {
+        chain.push_str(&format!(",atempo={}", clamp_atempo(speed)));
+    }
+    if (vol - 1.0).abs() > f64::EPSILON {
+        chain.push_str(&format!(",volume={vol}"));
+    }
+    chain.push_str(",aresample=async=1:first_pts=0");
+    let delay_ms = (start * 1000.0).round() as u64;
+    if delay_ms > 0 {
+        chain.push_str(&format!(",adelay={delay_ms}:all=1"));
+    }
+    chain.push_str(&format!("[{}]", label));
+    parts.push(chain);
+    (label, start + (source_end - source_start) / speed)
 }
 
 /// `atempo` only accepts 0.5..=2.0 per stage; clamp to the valid single-stage range.
@@ -1157,7 +1471,12 @@ fn build_drawtext(
     // the default font keeps exports reproducible and the graph free of
     // another user-controlled string.
     let color = normalize_color(&text.color, DEFAULT_TEXT_COLOR);
-    let font_size = text.font_size.clamp(1, 1000);
+    // Sizes are authored against a 1080-line canvas (the preview scales the
+    // same way), so text keeps its proportion at every export size.
+    let font_size = ((f64::from(text.font_size.clamp(1, 1000)) * f64::from(canvas.height)
+        / TEXT_REFERENCE_HEIGHT)
+        .round() as u32)
+        .max(1);
     let mut d = format!(
         "drawtext=expansion=none:text='{}':fontcolor={}:fontsize={}:x={}:y={}",
         content, color, font_size, x, y
@@ -1177,6 +1496,9 @@ fn build_drawtext(
     ));
     d
 }
+
+/// Canvas height that text sizes are authored against.
+const TEXT_REFERENCE_HEIGHT: f64 = 1080.0;
 
 /// Fallback text color when the project carries an unusable value.
 const DEFAULT_TEXT_COLOR: &str = "white";
@@ -1231,19 +1553,122 @@ struct EncoderChoice {
     hardware: bool,
 }
 
-/// Pick an encoder. When hardware accel is requested, probe ffmpeg's encoder
-/// list and pick the first available platform HW encoder; otherwise fall back
-/// to libx264 (software) so export never hard-fails on machines without NVENC.
-async fn select_video_encoder<R: Runtime>(app: &AppHandle<R>, want_hw: bool) -> EncoderChoice {
-    if !want_hw {
-        return EncoderChoice {
+impl EncoderChoice {
+    /// The software H.264 encoder, which every ffmpeg build we install has.
+    fn software() -> Self {
+        EncoderChoice {
             name: "libx264".to_string(),
             hardware: false,
-        };
+        }
     }
+}
 
-    let available = list_ffmpeg_encoders(app).await.unwrap_or_default();
-    pick_encoder(&available, HW_ENCODER_PREFERENCE)
+/// The hardware encoder that works on this machine, once it has been worked
+/// out (`None` inside means none does). Trying encoders costs a process each,
+/// so the answer is kept for the life of the app.
+static WORKING_HW_ENCODER: OnceLock<Option<String>> = OnceLock::new();
+
+/// Pick an encoder. When hardware accel is requested, take the first of this
+/// platform's hardware encoders that ffmpeg both lists and can actually
+/// encode with here; otherwise (or when none works) use libx264.
+///
+/// ffmpeg lists every encoder it was built with, whether or not the machine
+/// has the hardware: a build with NVENC lists `h264_nvenc` on a PC with no
+/// NVIDIA card, where using it fails. Listing alone is therefore not enough.
+async fn select_video_encoder<R: Runtime>(app: &AppHandle<R>, want_hw: bool) -> EncoderChoice {
+    if !want_hw {
+        return EncoderChoice::software();
+    }
+    if let Some(known) = WORKING_HW_ENCODER.get() {
+        return encoder_choice(known.as_deref());
+    }
+    // Without ffmpeg or its encoder list nothing can be tried; say "software"
+    // for now but do not remember it, so a later call can still find one.
+    let Ok(ffmpeg_path) = binary::get_ffmpeg_path(app) else {
+        return EncoderChoice::software();
+    };
+    let Ok(available) = list_ffmpeg_encoders(app).await else {
+        return EncoderChoice::software();
+    };
+    let working = first_working_encoder(&ffmpeg_path, &available, HW_ENCODER_PREFERENCE).await;
+    encoder_choice(WORKING_HW_ENCODER.get_or_init(|| working).as_deref())
+}
+
+/// The choice for a working hardware encoder name, or software for `None`.
+fn encoder_choice(hardware: Option<&str>) -> EncoderChoice {
+    match hardware {
+        Some(name) => EncoderChoice {
+            name: name.to_string(),
+            hardware: true,
+        },
+        None => {
+            warn!("No working hardware H.264 encoder; using libx264");
+            EncoderChoice::software()
+        }
+    }
+}
+
+/// The first of `candidates` that ffmpeg lists in `available` and that passes
+/// [`encoder_works`].
+async fn first_working_encoder(
+    ffmpeg_path: &Path,
+    available: &[String],
+    candidates: &[&str],
+) -> Option<String> {
+    for cand in candidates {
+        if !available.iter().any(|e| e == cand) {
+            continue;
+        }
+        if encoder_works(ffmpeg_path, cand).await {
+            debug!("Selected hardware encoder: {}", cand);
+            return Some((*cand).to_string());
+        }
+        debug!("Hardware encoder {} is listed but does not work here", cand);
+    }
+    None
+}
+
+/// How long a trial encode may take before the encoder counts as unusable.
+const ENCODER_TRIAL_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// Arguments for a trial encode of a few black frames with `encoder`.
+fn encoder_trial_args(encoder: &str) -> Vec<String> {
+    [
+        "-hide_banner",
+        "-v",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=black:s=320x180:r=30:d=0.2",
+        "-frames:v",
+        "3",
+        "-c:v",
+        encoder,
+        "-pix_fmt",
+        "yuv420p",
+        "-f",
+        "null",
+        "-",
+    ]
+    .iter()
+    .map(|a| a.to_string())
+    .collect()
+}
+
+/// Whether ffmpeg can really encode with `encoder` on this machine.
+async fn encoder_works(ffmpeg_path: &Path, encoder: &str) -> bool {
+    let trial = tokio_command(ffmpeg_path)
+        .args(encoder_trial_args(encoder))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .status();
+    matches!(
+        tokio::time::timeout(ENCODER_TRIAL_TIMEOUT, trial).await,
+        Ok(Ok(status)) if status.success()
+    )
 }
 
 /// Hardware H.264 encoders to try, in this platform's preference order.
@@ -1254,25 +1679,6 @@ const HW_ENCODER_PREFERENCE: &[&str] = if cfg!(target_os = "macos") {
 } else {
     &["h264_nvenc", "h264_vaapi", "h264_qsv"]
 };
-
-/// The first of `candidates` that ffmpeg reports in `available`, else libx264.
-fn pick_encoder(available: &[String], candidates: &[&str]) -> EncoderChoice {
-    for cand in candidates {
-        if available.iter().any(|e| e == cand) {
-            debug!("Selected hardware encoder: {}", cand);
-            return EncoderChoice {
-                name: (*cand).to_string(),
-                hardware: true,
-            };
-        }
-    }
-
-    warn!("No hardware H.264 encoder available; falling back to libx264");
-    EncoderChoice {
-        name: "libx264".to_string(),
-        hardware: false,
-    }
-}
 
 /// Cache of ffmpeg-reported encoder names (probing is relatively expensive).
 static ENCODER_CACHE: OnceLock<Vec<String>> = OnceLock::new();
@@ -1718,6 +2124,45 @@ mod tests {
         assert!(!m.has_audio);
         assert_eq!(m.fps, 25.0);
         assert_eq!(m.audio_codec, "");
+    }
+
+    #[test]
+    fn parse_ffprobe_reports_display_size_of_rotated_video() {
+        let probe = |stream_extra: &str| {
+            parse_ffprobe_output(&format!(
+                r#"{{"format": {{"duration": "6"}}, "streams": [
+                    {{"codec_type": "video", "codec_name": "mjpeg", "width": 540, "height": 960,
+                      "disposition": {{"attached_pic": 1}}}},
+                    {{"codec_type": "video", "codec_name": "h264", "width": 1920, "height": 1080,
+                      "r_frame_rate": "60/1" {stream_extra}}}]}}"#
+            ))
+            .unwrap()
+        };
+        // Cover art is skipped; an unrotated stream keeps its coded size.
+        let plain = probe("");
+        assert_eq!((plain.width, plain.height), (1920, 1080));
+        assert_eq!(plain.video_codec, "h264");
+        // Current ffmpeg: display matrix side data, as a number or a string.
+        let side = probe(r#", "side_data_list": [{"side_data_type": "x"}, {"rotation": -90}]"#);
+        assert_eq!((side.width, side.height), (1080, 1920));
+        let side_str = probe(r#", "side_data_list": [{"rotation": "270"}]"#);
+        assert_eq!((side_str.width, side_str.height), (1080, 1920));
+        // Older files: the `rotate` tag.
+        let tag = probe(r#", "tags": {"rotate": "90"}"#);
+        assert_eq!((tag.width, tag.height), (1080, 1920));
+        // Upside down is still landscape.
+        let flipped = probe(r#", "tags": {"rotate": "180"}"#);
+        assert_eq!((flipped.width, flipped.height), (1920, 1080));
+    }
+
+    #[test]
+    fn quarter_turns() {
+        for turned in [90.0, -90.0, 270.0, -270.0, 450.0, 89.6] {
+            assert!(is_quarter_turn(turned), "{turned}");
+        }
+        for upright in [0.0, 180.0, -180.0, 360.0, 45.0, f64::NAN, f64::INFINITY] {
+            assert!(!is_quarter_turn(upright), "{upright}");
+        }
     }
 
     // ---- clamp_atempo ----
@@ -2185,7 +2630,7 @@ mod tests {
             width: 1280,
             height: 720,
         };
-        let g = build_filter_graph(&p, &planned, canvas);
+        let g = build_filter_graph(&p, &planned, canvas, 30);
         assert!(!g.filter.contains("concat"), "single clip must not concat");
         assert_eq!(g.video_label.as_deref(), Some("v0"));
         // Video clip on a video track also produces audio.
@@ -2209,7 +2654,7 @@ mod tests {
             width: 1280,
             height: 720,
         };
-        let g = build_filter_graph(&p, &planned, canvas);
+        let g = build_filter_graph(&p, &planned, canvas, 30);
         assert!(g.filter.contains("concat=n=2:v=1:a=0[vcat]"));
         assert_eq!(g.video_label.as_deref(), Some("vcat"));
         // Two audio streams get mixed.
@@ -2233,6 +2678,7 @@ mod tests {
                 width: 1280,
                 height: 720,
             },
+            30,
         );
         assert!(g.filter.contains("atrim=start=1:end=4"));
         // 0.5 (clip) * 0.5 (track) = 0.25
@@ -2255,6 +2701,7 @@ mod tests {
                 width: 1280,
                 height: 720,
             },
+            30,
         );
         assert!(g.audio_label.is_none());
     }
@@ -2288,6 +2735,7 @@ mod tests {
                 width: 1280,
                 height: 720,
             },
+            30,
         );
         assert!(g.filter.contains("drawtext=expansion=none:text='Hello'"));
         assert!(g.filter.contains("fontcolor=0xffffff"));
@@ -2311,9 +2759,14 @@ mod tests {
                 width: 1280,
                 height: 720,
             },
+            30,
         );
-        // Images are not trimmed (no timeline).
-        assert!(!g.filter.contains("trim="));
+        // A still has no source range to trim; it is held for the clip's
+        // five seconds on the timeline instead.
+        assert!(!g.filter.contains("trim=start="));
+        assert!(g
+            .filter
+            .contains("loop=loop=-1:size=1:start=0,setpts=N/(30*TB),trim=duration=5,"));
         assert!(g.filter.contains("scale=1280:720"));
         // Image is not a Video clip, so no audio.
         assert!(g.audio_label.is_none());
@@ -2333,6 +2786,7 @@ mod tests {
                 width: 1280,
                 height: 720,
             },
+            30,
         );
         assert!(g.filter.contains("colorchannelmixer=aa=0.5"));
     }
@@ -2492,6 +2946,7 @@ mod tests {
                 width: 1280,
                 height: 720,
             },
+            30,
         );
         assert!(g.filter.contains("eq=contrast=1.4"));
         assert!(g.filter.contains("fade=t=in"));
@@ -2587,6 +3042,267 @@ mod tests {
         assert!(args.windows(2).any(|w| w == ["-c:v", "libx265"]));
     }
 
+    // ---- timeline placement ----
+
+    const CANVAS: Canvas = Canvas {
+        width: 1280,
+        height: 720,
+    };
+
+    /// A clip playing `source_start..source_end` of its file from `start` on
+    /// the timeline.
+    fn placed(clip_type: ClipType, path: &str, start: f64, source: (f64, f64)) -> Clip {
+        let mut c = clip(clip_type, path);
+        c.start_time = start;
+        c.end_time = start + (source.1 - source.0);
+        c.source_start = source.0;
+        c.source_end = source.1;
+        c
+    }
+
+    #[test]
+    fn resolve_canvas_presets_follow_a_portrait_project() {
+        let mut p = base_project();
+        p.settings.width = 1080;
+        p.settings.height = 1920;
+        let named = |res: &str| {
+            let mut s = base_settings();
+            s.resolution = res.into();
+            let c = resolve_canvas(&p, &s);
+            (c.width, c.height)
+        };
+        assert_eq!(named("original"), (1080, 1920));
+        assert_eq!(named("1080p"), (1080, 1920));
+        assert_eq!(named("720p"), (720, 1280));
+        assert_eq!(named("4k"), (2160, 3840));
+        assert_eq!(named("480p"), (480, 854));
+        // An explicit size is taken as written.
+        assert_eq!(named("1920x1080"), (1920, 1080));
+    }
+
+    #[test]
+    fn canvas_dimensions_are_made_even() {
+        let mut p = base_project();
+        p.settings.width = 1081;
+        p.settings.height = 607;
+        let mut s = base_settings();
+        s.resolution = "original".into();
+        let c = resolve_canvas(&p, &s);
+        assert_eq!((c.width, c.height), (1080, 606));
+        s.resolution = "641x361".into();
+        let c = resolve_canvas(&p, &s);
+        assert_eq!((c.width, c.height), (640, 360));
+        let tiny = Canvas::new(0, 1);
+        assert_eq!((tiny.width, tiny.height), (2, 2));
+    }
+
+    #[test]
+    fn planned_clip_durations_respect_speed_and_the_real_source_length() {
+        let mut p = base_project();
+        let mut fast = placed(ClipType::Video, "a.mp4", 0.0, (2.0, 6.0));
+        fast.properties.speed = 2.0;
+        let mut odd = placed(ClipType::Video, "b.mp4", 0.0, (1.0, 61.0));
+        odd.properties.speed = f64::NAN;
+        let still = placed(ClipType::Image, "c.png", 3.0, (0.0, 4.5));
+        p.tracks = vec![track(TrackType::Video, vec![fast, odd, still])];
+        let mut planned = plan(&p);
+
+        assert_eq!(planned[0].speed(), 2.0);
+        assert_eq!(planned[0].output_duration(), 2.0);
+        // A nonsense speed plays at normal speed.
+        assert_eq!(planned[1].speed(), 1.0);
+        assert_eq!(planned[1].output_duration(), 60.0);
+        // The clip claims a minute but the file is 4 s long.
+        planned[1].source_duration = Some(4.0);
+        assert_eq!(planned[1].source_range(), (1.0, 4.0));
+        assert_eq!(planned[1].output_duration(), 3.0);
+        // A source shorter than the clip's start cannot clamp it to nothing.
+        planned[1].source_duration = Some(0.5);
+        assert_eq!(planned[1].source_range(), (1.0, 61.0));
+        // A still lasts as long as it sits on the timeline.
+        assert_eq!(planned[2].output_duration(), 4.5);
+        assert!(planned[2].is_visual() && !planned[2].is_audible());
+    }
+
+    #[test]
+    fn filter_graph_skips_audio_of_a_silent_clip() {
+        let mut p = base_project();
+        p.tracks = vec![track(
+            TrackType::Video,
+            vec![
+                placed(ClipType::Video, "phone.mp4", 0.0, (0.0, 3.0)),
+                placed(ClipType::Video, "drone.mp4", 3.0, (0.0, 4.0)),
+            ],
+        )];
+        let mut planned = plan(&p);
+        planned[1].has_audio = false;
+        let g = build_filter_graph(&p, &planned, CANVAS, 30);
+        assert!(g.filter.contains("[0:a]atrim"));
+        assert!(!g.filter.contains("[1:a]"), "{}", g.filter);
+        assert!(!g.filter.contains("amix"));
+        // The one audio stream is padded with silence to the 7 s of picture.
+        assert!(
+            g.filter.contains("[a0]apad=whole_dur=7[apad]"),
+            "{}",
+            g.filter
+        );
+        assert_eq!(g.audio_label.as_deref(), Some("apad"));
+
+        // No clip has sound: the export simply has no audio stream.
+        planned[0].has_audio = false;
+        let g = build_filter_graph(&p, &planned, CANVAS, 30);
+        assert!(g.audio_label.is_none());
+        assert!(!g.filter.contains(":a]"));
+    }
+
+    #[test]
+    fn filter_graph_plays_clips_in_timeline_order_with_their_own_sound() {
+        let mut p = base_project();
+        // Stored out of order, as after dragging a clip in front of another.
+        p.tracks = vec![track(
+            TrackType::Video,
+            vec![
+                placed(ClipType::Video, "second.mp4", 3.0, (0.0, 4.0)),
+                placed(ClipType::Video, "first.mp4", 0.0, (0.0, 3.0)),
+            ],
+        )];
+        let planned = plan(&p);
+        let g = build_filter_graph(&p, &planned, CANVAS, 30);
+        // Input 1 ("first") comes before input 0 ("second") in the picture...
+        assert!(
+            g.filter.contains("[v1][v0]concat=n=2:v=1:a=0[vcat]"),
+            "{}",
+            g.filter
+        );
+        // ...and the second clip's sound is delayed to where its picture starts.
+        assert!(g
+            .filter
+            .contains("aresample=async=1:first_pts=0,adelay=3000:all=1[a0]"));
+        assert!(g.filter.contains("aresample=async=1:first_pts=0[a1]"));
+        assert!(g.filter.contains("amix=inputs=2:normalize=0[amix]"));
+        // Sound covers the whole picture, so nothing is padded.
+        assert_eq!(g.audio_label.as_deref(), Some("amix"));
+        assert!(!g.filter.contains("apad"));
+    }
+
+    #[test]
+    fn filter_graph_fills_timeline_gaps_with_black() {
+        let mut p = base_project();
+        p.tracks = vec![track(
+            TrackType::Video,
+            vec![
+                placed(ClipType::Video, "a.mp4", 1.0, (0.0, 2.0)),
+                placed(ClipType::Video, "b.mp4", 5.0, (0.0, 1.0)),
+                // Touches the previous clip: a sub-frame gap is not a gap.
+                placed(ClipType::Video, "c.mp4", 6.001, (0.0, 1.0)),
+            ],
+        )];
+        let planned = plan(&p);
+        let g = build_filter_graph(&p, &planned, CANVAS, 25);
+        assert!(g
+            .filter
+            .contains("color=c=black:s=1280x720:r=25:d=1,format=yuv420p,setsar=1[gap0]"));
+        assert!(g
+            .filter
+            .contains("color=c=black:s=1280x720:r=25:d=2,format=yuv420p,setsar=1[gap2]"));
+        assert!(
+            g.filter
+                .contains("[gap0][v0][gap2][v1][v2]concat=n=5:v=1:a=0[vcat]"),
+            "{}",
+            g.filter
+        );
+        // Sound follows the picture: 1 s, 5 s and 6 s into the output.
+        assert!(g.filter.contains("adelay=1000:all=1[a0]"));
+        assert!(g.filter.contains("adelay=5000:all=1[a1]"));
+        assert!(g.filter.contains("adelay=6000:all=1[a2]"));
+        // The export frame rate, not the project's, drives the picture.
+        assert!(g.filter.contains("fps=25,format=yuv420p"));
+        assert!(!g.filter.contains("fps=30"));
+    }
+
+    #[test]
+    fn filter_graph_places_audio_track_clips_at_their_timeline_position() {
+        let mut p = base_project();
+        let mut music = placed(ClipType::Audio, "song.mp3", 2.5, (10.0, 14.0));
+        music.properties.speed = 2.0;
+        p.tracks = vec![
+            track(
+                TrackType::Video,
+                vec![placed(ClipType::Video, "a.mp4", 0.0, (0.0, 6.0))],
+            ),
+            track(TrackType::Audio, vec![music]),
+        ];
+        let mut planned = plan(&p);
+        // A clip longer than its file: the range is clamped for sound too.
+        planned[0].source_duration = Some(5.0);
+        let g = build_filter_graph(&p, &planned, CANVAS, 30);
+        assert!(g.filter.contains("[0:v]trim=start=0:end=5,"));
+        assert!(g.filter.contains("[0:a]atrim=start=0:end=5,"));
+        assert!(g
+            .filter
+            .contains("[1:a]atrim=start=10:end=14,asetpts=PTS-STARTPTS,atempo=2,"));
+        assert!(g.filter.contains("adelay=2500:all=1[a1]"));
+        assert!(g.filter.contains("[a0][a1]amix=inputs=2:normalize=0[amix]"));
+    }
+
+    #[test]
+    fn drawtext_size_scales_with_the_canvas_height() {
+        let text = TextProperties {
+            content: "Hi".into(),
+            font_size: 48,
+            color: "#ffffff".into(),
+            ..Default::default()
+        };
+        let at = |height: u32| {
+            build_drawtext(
+                &text,
+                0.0,
+                1.0,
+                Canvas {
+                    width: 1080,
+                    height,
+                },
+            )
+        };
+        assert!(at(1080).contains("fontsize=48:"));
+        assert!(at(1920).contains("fontsize=85:"));
+        assert!(at(720).contains("fontsize=32:"));
+        let tiny = TextProperties {
+            font_size: 1,
+            ..text.clone()
+        };
+        assert!(build_drawtext(&tiny, 0.0, 1.0, CANVAS).contains("fontsize=1:"));
+    }
+
+    #[test]
+    fn ffmpeg_error_summary_picks_the_explaining_line() {
+        let nvenc = "[h264_nvenc @ 0x55] Cannot load libcuda.so.1\n\
+            [vost#0:0/h264_nvenc @ 0x56] Error while opening encoder - maybe incorrect parameters\n\
+            [out#0/mp4 @ 0x57] Nothing was written into output file\n\
+            frame=    0 fps=0.0 q=0.0 Lsize=       0kB\n\
+            [aac @ 0x58] Qavg: 65536.000\n\
+            Conversion failed!\n";
+        assert_eq!(
+            summarize_ffmpeg_error(nvenc).as_deref(),
+            Some("Error while opening encoder - maybe incorrect parameters")
+        );
+        assert_eq!(
+            summarize_ffmpeg_error("  \nfile:/x.mp4: No such file or directory\n").as_deref(),
+            Some("file:/x.mp4: No such file or directory")
+        );
+        // Nothing reads like an error: the last line stands in.
+        assert_eq!(
+            summarize_ffmpeg_error("line 1\nline 2\n").as_deref(),
+            Some("line 2")
+        );
+        // A bracket that is not a component prefix is kept.
+        assert_eq!(
+            summarize_ffmpeg_error("[broken error").as_deref(),
+            Some("[broken error")
+        );
+        assert_eq!(summarize_ffmpeg_error(" \n\n"), None);
+    }
+
     // ---- run_export (no real ffmpeg needed) ----
 
     fn export_fixture(dir: &Path) -> (Project, ExportSettings) {
@@ -2614,6 +3330,7 @@ mod tests {
             &p,
             &s,
             tx.clone(),
+            true,
         )
         .await
         .unwrap_err();
@@ -2621,9 +3338,16 @@ mod tests {
 
         let (_, good) = export_fixture(dir.path());
         p.tracks[0].clips[0].source_path = "concat:/a.mp4|/b.mp4".into();
-        let err = run_export(Path::new("ffmpeg"), &enc("libx264", false), &p, &good, tx)
-            .await
-            .unwrap_err();
+        let err = run_export(
+            Path::new("ffmpeg"),
+            &enc("libx264", false),
+            &p,
+            &good,
+            tx,
+            true,
+        )
+        .await
+        .unwrap_err();
         assert!(matches!(err, AcevidsError::InvalidPath(_)), "{err:?}");
     }
 
@@ -2633,7 +3357,7 @@ mod tests {
         let (p, s) = export_fixture(dir.path());
         let (tx, mut rx) = mpsc::channel(8);
         let missing = dir.path().join("no-such-ffmpeg");
-        let err = run_export(&missing, &enc("libx264", false), &p, &s, tx)
+        let err = run_export(&missing, &enc("libx264", false), &p, &s, tx, true)
             .await
             .unwrap_err();
         assert!(matches!(err, AcevidsError::FFmpeg(_)), "{err:?}");
@@ -2766,16 +3490,45 @@ mod tests {
         assert!(err.to_string().contains("Transcode failed"), "{err}");
     }
 
-    #[test]
-    fn encoder_preference_picks_first_reported_hardware_encoder() {
+    #[tokio::test]
+    async fn hardware_encoder_must_be_listed_and_pass_a_trial_encode() {
         let list = |names: &[&str]| names.iter().map(|n| n.to_string()).collect::<Vec<_>>();
+        let dir = tempfile::tempdir().unwrap();
+        let works = fake_tool(&dir.path().join("ok"), "ffmpeg", &Script::default());
+        let broken = fake_tool(&dir.path().join("bad"), "ffmpeg", &failing("no device"));
         let cands = ["h264_nvenc", "h264_qsv"];
-        let pick = pick_encoder(&list(&["aac", "h264_qsv", "h264_nvenc"]), &cands);
-        assert_eq!((pick.name.as_str(), pick.hardware), ("h264_nvenc", true));
-        let pick = pick_encoder(&list(&["h264_qsv"]), &cands);
-        assert_eq!(pick.name, "h264_qsv");
-        let pick = pick_encoder(&list(&["libx264"]), &cands);
-        assert_eq!((pick.name.as_str(), pick.hardware), ("libx264", false));
+
+        // Preference order wins among encoders that are listed and work.
+        let listed = list(&["aac", "h264_qsv", "h264_nvenc"]);
+        assert_eq!(
+            first_working_encoder(&works, &listed, &cands)
+                .await
+                .as_deref(),
+            Some("h264_nvenc")
+        );
+        // An encoder ffmpeg does not list is never tried.
+        assert_eq!(
+            first_working_encoder(&works, &list(&["h264_qsv"]), &cands)
+                .await
+                .as_deref(),
+            Some("h264_qsv")
+        );
+        assert_eq!(
+            first_working_encoder(&works, &list(&["libx264"]), &cands).await,
+            None
+        );
+        // Listed but failing its trial encode (no such hardware here): skipped.
+        assert_eq!(first_working_encoder(&broken, &listed, &cands).await, None);
+        assert!(!encoder_works(Path::new("/definitely/missing/ffmpeg"), "h264_nvenc").await);
+
+        let args = encoder_trial_args("h264_qsv");
+        assert!(args.windows(2).any(|w| w == ["-c:v", "h264_qsv"]));
+        assert_eq!(args.last().unwrap(), "-");
+
+        let hw = encoder_choice(Some("h264_amf"));
+        assert_eq!((hw.name.as_str(), hw.hardware), ("h264_amf", true));
+        let soft = encoder_choice(None);
+        assert_eq!((soft.name.as_str(), soft.hardware), ("libx264", false));
         assert!(!HW_ENCODER_PREFERENCE.is_empty());
     }
 
@@ -2784,14 +3537,17 @@ mod tests {
         let listing = " V..... = Video\n ------\n V....D h264_nvenc  NVENC\n A....D aac  AAC\n";
         let (app, media) = app_with_tools(&ok_with(listing), &ok_with(PROBE_JSON));
         let choice = select_video_encoder(app.handle(), true).await;
-        // The encoder list is cached process-wide, so only check consistency.
+        // The encoder list and the working encoder are cached process-wide,
+        // so only check consistency: a hardware pick is always a listed one.
         let cached = list_ffmpeg_encoders(app.handle()).await.unwrap();
-        assert_eq!(
-            choice.hardware,
-            HW_ENCODER_PREFERENCE
-                .iter()
-                .any(|c| cached.iter().any(|e| e == c))
-        );
+        if choice.hardware {
+            assert!(HW_ENCODER_PREFERENCE.contains(&choice.name.as_str()));
+            assert!(cached.iter().any(|e| e == &choice.name));
+        } else {
+            assert_eq!(choice.name, "libx264");
+        }
+        let again = select_video_encoder(app.handle(), true).await;
+        assert_eq!((again.name, again.hardware), (choice.name, choice.hardware));
         let soft = select_video_encoder(app.handle(), false).await;
         assert_eq!((soft.name.as_str(), soft.hardware), ("libx264", false));
         let settings = ExportSettings {
@@ -2853,7 +3609,7 @@ mod tests {
         let ffmpeg = fake_tool(&dir.path().join("bin"), "ffmpeg", &failing(&stderr));
 
         let (tx, mut rx) = mpsc::channel(64);
-        let err = run_export(&ffmpeg, &enc("libx264", false), &p, &s, tx)
+        let err = run_export(&ffmpeg, &enc("libx264", false), &p, &s, tx, true)
             .await
             .unwrap_err();
         let msg = err.to_string();
@@ -2867,7 +3623,7 @@ mod tests {
 
         let silent = fake_tool(&dir.path().join("bin2"), "ffmpeg", &failing(""));
         let (tx, mut rx) = mpsc::channel(64);
-        let err = run_export(&silent, &enc("libx264", false), &p, &s, tx)
+        let err = run_export(&silent, &enc("libx264", false), &p, &s, tx, true)
             .await
             .unwrap_err();
         assert!(err.to_string().contains("unknown error"), "{err}");
@@ -2875,6 +3631,199 @@ mod tests {
             drain(&mut rx).pop().unwrap().error.as_deref(),
             Some("Export failed")
         );
+    }
+
+    const SILENT_PROBE_JSON: &str = r#"{"format":{"duration":"4.0"},
+        "streams":[{"codec_type":"video","codec_name":"hevc","width":1512,"height":2688,
+        "r_frame_rate":"60/1"}]}"#;
+
+    #[tokio::test]
+    async fn sources_are_probed_once_each_and_failures_keep_the_defaults() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut p = base_project();
+        p.tracks = vec![track(
+            TrackType::Video,
+            vec![
+                clip(ClipType::Video, "drone.mp4"),
+                clip(ClipType::Video, "drone.mp4"),
+                clip(ClipType::Image, "logo.png"),
+            ],
+        )];
+        let inputs = vec![
+            PathBuf::from("/m/drone.mp4"),
+            PathBuf::from("/m/drone.mp4"),
+            PathBuf::from("/m/logo.png"),
+        ];
+
+        let ffprobe = fake_tool(
+            &dir.path().join("ok"),
+            "ffprobe",
+            &ok_with(SILENT_PROBE_JSON),
+        );
+        let mut planned = plan(&p);
+        probe_sources(&ffprobe, &mut planned, &inputs).await;
+        // Both cuts of the silent drone clip learn it has no sound and is 4 s.
+        for cut in &planned[..2] {
+            assert!(!cut.has_audio);
+            assert_eq!(cut.source_duration, Some(4.0));
+        }
+        // Stills are not probed.
+        assert_eq!(planned[2].source_duration, None);
+
+        // A probe that fails (or a missing ffprobe) leaves the plan as it was.
+        let broken = fake_tool(&dir.path().join("bad"), "ffprobe", &failing("nope"));
+        let mut planned = plan(&p);
+        probe_sources(&broken, &mut planned, &inputs).await;
+        assert!(planned
+            .iter()
+            .all(|c| c.has_audio && c.source_duration.is_none()));
+
+        // A probe without a usable duration still reports the audio.
+        let no_duration = SourceInfo::from(&VideoMetadata {
+            duration: 0.0,
+            width: 0,
+            height: 0,
+            fps: 0.0,
+            video_codec: String::new(),
+            audio_codec: String::new(),
+            bitrate: 0,
+            has_audio: true,
+        });
+        assert_eq!(
+            no_duration,
+            SourceInfo {
+                has_audio: true,
+                duration: None
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn export_of_a_silent_clip_does_not_ask_ffmpeg_for_its_audio() {
+        let _guard = EXPORT_TEST_LOCK.lock().await;
+        reset_export_cancel();
+        let dir = tempfile::tempdir().unwrap();
+        let (p, s) = export_fixture(dir.path());
+        let bin = dir.path().join("bin");
+        // The scripted ffmpeg echoes nothing; what matters is the plan it is given.
+        let ffmpeg = fake_tool(&bin, "ffmpeg", &ok_with("frame=1\nprogress=end\n"));
+        fake_tool(&bin, "ffprobe", &ok_with(SILENT_PROBE_JSON));
+
+        let mut planned = plan(&p);
+        let (_, inputs) = validate_export_paths(&p, &s).unwrap();
+        probe_sources(&ffprobe_beside(&ffmpeg), &mut planned, &inputs).await;
+        let args = build_export_args(
+            &p,
+            &s,
+            &planned,
+            &inputs,
+            Path::new("/out/x.mp4"),
+            &enc("libx264", false),
+        );
+        assert!(!args.iter().any(|a| a.contains(":a]")), "{args:?}");
+        assert!(!args.iter().any(|a| a == "-c:a"));
+
+        let (tx, _rx) = mpsc::channel(64);
+        run_export(&ffmpeg, &enc("libx264", false), &p, &s, tx, true)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn failed_hardware_export_is_retried_in_software_and_reported_once() {
+        let _guard = EXPORT_TEST_LOCK.lock().await;
+        reset_export_cancel();
+        let dir = tempfile::tempdir().unwrap();
+        let (p, s) = export_fixture(dir.path());
+        std::fs::write(&s.output_path, b"truncated").unwrap();
+        let ffmpeg = fake_tool(
+            &dir.path().join("bin"),
+            "ffmpeg",
+            &failing("[h264_nvenc @ 0x1] Cannot load libcuda.so.1\nConversion failed!\n"),
+        );
+
+        // Both attempts fail here, but only the last one is announced.
+        let (tx, mut rx) = mpsc::channel(64);
+        let err = export_with_fallback(&ffmpeg, enc("h264_nvenc", true), &p, &s, tx)
+            .await
+            .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "FFmpeg error: Cannot load libcuda.so.1",
+            "{err}"
+        );
+        let all = drain(&mut rx);
+        let failed: Vec<_> = all
+            .iter()
+            .filter(|p| p.status == ExportStatus::Failed)
+            .collect();
+        assert_eq!(failed.len(), 1, "{all:?}");
+        assert_eq!(failed[0].error.as_deref(), Some("Cannot load libcuda.so.1"));
+        // Two attempts were made, and no broken file is left behind.
+        let preparing = all
+            .iter()
+            .filter(|p| p.status == ExportStatus::Preparing)
+            .count();
+        assert_eq!(preparing, 2);
+        assert!(!Path::new(&s.output_path).exists());
+
+        // A software export has nothing to fall back to: one attempt.
+        let (tx, mut rx) = mpsc::channel(64);
+        export_with_fallback(&ffmpeg, enc("libx264", false), &p, &s, tx)
+            .await
+            .unwrap_err();
+        let preparing = drain(&mut rx)
+            .iter()
+            .filter(|p| p.status == ExportStatus::Preparing)
+            .count();
+        assert_eq!(preparing, 1);
+    }
+
+    #[tokio::test]
+    async fn working_hardware_export_and_cancellation_are_not_retried() {
+        let _guard = EXPORT_TEST_LOCK.lock().await;
+        reset_export_cancel();
+        let dir = tempfile::tempdir().unwrap();
+        let (p, s) = export_fixture(dir.path());
+        let ffmpeg = fake_tool(
+            &dir.path().join("bin"),
+            "ffmpeg",
+            &ok_with("frame=1\nprogress=end\n"),
+        );
+
+        let (tx, mut rx) = mpsc::channel(64);
+        export_with_fallback(&ffmpeg, enc("h264_nvenc", true), &p, &s, tx)
+            .await
+            .unwrap();
+        let statuses: Vec<_> = drain(&mut rx).iter().map(|p| p.status).collect();
+        assert_eq!(
+            statuses
+                .iter()
+                .filter(|s| **s == ExportStatus::Preparing)
+                .count(),
+            1
+        );
+        assert_eq!(statuses.last(), Some(&ExportStatus::Completed));
+
+        // Cancelling a hardware export ends it; it must not restart in software.
+        request_export_cancel();
+        let (tx, mut rx) = mpsc::channel(64);
+        let err = export_with_fallback(&ffmpeg, enc("h264_nvenc", true), &p, &s, tx)
+            .await
+            .unwrap_err();
+        assert!(is_cancellation(&err), "{err:?}");
+        assert!(!is_cancellation(&AcevidsError::ExportFailed(
+            "other".into()
+        )));
+        let statuses: Vec<_> = drain(&mut rx).iter().map(|p| p.status).collect();
+        assert_eq!(
+            statuses
+                .iter()
+                .filter(|s| **s == ExportStatus::Preparing)
+                .count(),
+            1
+        );
+        assert_eq!(statuses.last(), Some(&ExportStatus::Cancelled));
     }
 
     #[tokio::test]
@@ -2887,7 +3836,7 @@ mod tests {
 
         request_export_cancel();
         let (tx, mut rx) = mpsc::channel(64);
-        let err = run_export(&ffmpeg, &enc("libx264", false), &p, &s, tx)
+        let err = run_export(&ffmpeg, &enc("libx264", false), &p, &s, tx, true)
             .await
             .unwrap_err();
         assert!(matches!(err, AcevidsError::ExportFailed(_)), "{err:?}");
@@ -2913,10 +3862,9 @@ mod tests {
         let ffmpeg = fake_tool(&dir.path().join("bin"), "ffmpeg", &slow);
 
         let (tx, mut rx) = mpsc::channel(64);
-        let task =
-            tokio::spawn(
-                async move { run_export(&ffmpeg, &enc("libx264", false), &p, &s, tx).await },
-            );
+        let task = tokio::spawn(async move {
+            run_export(&ffmpeg, &enc("libx264", false), &p, &s, tx, true).await
+        });
         while let Some(p) = rx.recv().await {
             if p.status == ExportStatus::Exporting {
                 break;

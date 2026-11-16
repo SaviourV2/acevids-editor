@@ -21,8 +21,10 @@ import {
   DEFAULT_IMAGE_DURATION,
   FALLBACK_MEDIA_DURATION,
   MEDIA_DIALOG_FILTERS,
+  canvasForVideo,
   classifyMediaExtension,
   fileNameFromPath,
+  type ProjectCanvas,
 } from "@/lib/editor/media";
 import {
   findClip,
@@ -34,6 +36,9 @@ import { fromBackendProject, toBackendProject } from "@/lib/editor/project-mappi
 
 const PROJECT_FILTERS = [{ name: "ACEVIDS Project", extensions: ["acevids"] }];
 
+/** Frame rate assumed while no project is open. */
+const DEFAULT_PROJECT_FPS = 30;
+
 /** Commands returned by {@link useEditorActions}. */
 export interface EditorActions {
   /** Clip currently on the clipboard, if any. */
@@ -41,7 +46,7 @@ export interface EditorActions {
   openProject: () => Promise<void>;
   saveProject: () => Promise<void>;
   importFiles: () => Promise<void>;
-  addLibraryVideo: (video: LibraryVideo) => void;
+  addLibraryVideo: (video: LibraryVideo) => Promise<void>;
   /** Adds a text overlay at the playhead and selects it; returns its id. */
   addText: () => string | null;
   copyClip: (clipId: string) => void;
@@ -63,12 +68,24 @@ interface MediaItem {
   name: string;
   path: string;
   duration: number;
+  /** Canvas matching this video's picture, when its size is known. */
+  canvas?: ProjectCanvas | null;
 }
 
-/** Append media after the last clip, each on the first track of its type, as one undo step. */
+const isVisual = (type: ClipType) => type === "video" || type === "image";
+
+/**
+ * Append media after the last clip, each on the first track of its type, as
+ * one undo step. The first video to reach a timeline with no picture on it
+ * also sets the project canvas, so the project takes that video's shape and
+ * frame rate.
+ */
 function appendMedia(items: MediaItem[], description: string) {
   const store = useEditorStore.getState();
   store.batch(description, () => {
+    const hasPicture = store.project!.tracks.some((t) => t.clips.some((c) => isVisual(c.type)));
+    const canvas = hasPicture ? null : items.find((i) => i.canvas)?.canvas;
+    if (canvas) store.setCanvas(canvas);
     for (const { type, name, path, duration } of items) {
       const tracks = useEditorStore.getState().project!.tracks;
       const trackType = trackTypeForClip(type);
@@ -80,6 +97,11 @@ function appendMedia(items: MediaItem[], description: string) {
       );
     }
   });
+}
+
+/** Frame rate of the open project, or the default when none is open. */
+function projectFps(): number {
+  return useEditorStore.getState().project?.settings.fps ?? DEFAULT_PROJECT_FPS;
 }
 
 function singleSelection(): string | null {
@@ -148,15 +170,17 @@ export function useEditorActions(): EditorActions {
           continue;
         }
         let duration = kind === "image" ? DEFAULT_IMAGE_DURATION : FALLBACK_MEDIA_DURATION;
+        let canvas: ProjectCanvas | null = null;
         if (kind !== "image") {
           try {
             const metadata = await getMetadata(filePath);
             duration = metadata.duration || FALLBACK_MEDIA_DURATION;
+            if (kind === "video") canvas = canvasForVideo(metadata, projectFps());
           } catch {
             logger.warn("Editor", "Could not get metadata for:", filePath);
           }
         }
-        items.push({ type: kind, name, path: filePath, duration });
+        items.push({ type: kind, name, path: filePath, duration, canvas });
       }
 
       if (items.length > 0) {
@@ -169,24 +193,31 @@ export function useEditorActions(): EditorActions {
     }
   }, [getMetadata]);
 
-  const addLibraryVideo = useCallback((video: LibraryVideo) => {
-    if (!useEditorStore.getState().project) {
-      toast.error("No project loaded");
-      return;
-    }
-    appendMedia(
-      [
-        {
-          type: "video",
-          name: video.title,
-          path: video.filePath,
-          duration: video.duration || FALLBACK_MEDIA_DURATION,
-        },
-      ],
-      "Add media"
-    );
-    toast.success(`Added "${video.title}" to timeline`);
-  }, []);
+  const addLibraryVideo = useCallback(
+    async (video: LibraryVideo) => {
+      // The library does not always know a file's length or picture size
+      // (files imported from disk have neither), so ask the file itself.
+      let duration = video.duration || FALLBACK_MEDIA_DURATION;
+      let canvas: ProjectCanvas | null = null;
+      try {
+        const metadata = await getMetadata(video.filePath);
+        duration = metadata.duration || duration;
+        canvas = canvasForVideo(metadata, projectFps());
+      } catch {
+        logger.warn("Editor", "Could not get metadata for:", video.filePath);
+      }
+      if (!useEditorStore.getState().project) {
+        toast.error("No project loaded");
+        return;
+      }
+      appendMedia(
+        [{ type: "video", name: video.title, path: video.filePath, duration, canvas }],
+        "Add media"
+      );
+      toast.success(`Added "${video.title}" to timeline`);
+    },
+    [getMetadata]
+  );
 
   const addText = useCallback(() => {
     const store = useEditorStore.getState();

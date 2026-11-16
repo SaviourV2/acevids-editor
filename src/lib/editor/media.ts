@@ -1,7 +1,7 @@
 /**
  * Media file classification for the editor's import flow.
  */
-import type { ClipType } from "@/types/editor";
+import type { ClipType, ProjectSettings } from "@/types/editor";
 
 /** Extensions imported as video clips. */
 export const VIDEO_EXTENSIONS = ["mp4", "mkv", "avi", "mov", "webm"] as const;
@@ -14,6 +14,34 @@ export const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "gif", "webp"] as const;
 export const DEFAULT_IMAGE_DURATION = 5;
 /** Fallback length when the backend cannot report a media duration. */
 export const FALLBACK_MEDIA_DURATION = 60;
+
+/** Highest frame rate a project takes over from a source file. */
+export const MAX_PROJECT_FPS = 120;
+
+/** Frame size and rate of a project canvas. */
+export type ProjectCanvas = Pick<ProjectSettings, "width" | "height" | "fps">;
+
+/**
+ * Canvas for a project whose first video has the given picture, so a vertical
+ * clip gets a vertical project instead of black bars in a 16:9 frame.
+ *
+ * @param video - Display size and frame rate reported for the file.
+ * @param fallbackFps - Frame rate to keep when the file reports none.
+ * @returns The canvas (even dimensions, whole fps), or `null` when the size is unknown.
+ */
+export function canvasForVideo(
+  video: { width: number; height: number; fps: number },
+  fallbackFps: number
+): ProjectCanvas | null {
+  if (!(video.width >= 2) || !(video.height >= 2)) return null;
+  const even = (n: number) => Math.floor(n / 2) * 2;
+  const fps = Math.round(video.fps);
+  return {
+    width: even(video.width),
+    height: even(video.height),
+    fps: fps >= 1 ? Math.min(fps, MAX_PROJECT_FPS) : fallbackFps,
+  };
+}
 
 /** File-type filters for the "Import from disk" dialog. */
 export const MEDIA_DIALOG_FILTERS = [

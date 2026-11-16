@@ -4,6 +4,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useState } from "react";
+import { errorMessage } from "@/lib/utils";
 import { useTauriEvent } from "./useTauri";
 
 // ============================================================================
@@ -163,7 +164,7 @@ export function useVideoMetadata() {
       setMetadata(result);
       return result;
     } catch (e) {
-      const errorMsg = e?.toString() || "Failed to get video metadata";
+      const errorMsg = errorMessage(e, "Failed to get video metadata");
       setError(errorMsg);
       throw new Error(errorMsg);
     } finally {
@@ -219,7 +220,7 @@ export function useWaveform() {
       setWaveform(result);
       return result;
     } catch (e) {
-      const errorMsg = e?.toString() || "Failed to extract waveform";
+      const errorMsg = errorMessage(e, "Failed to extract waveform");
       setError(errorMsg);
       return [];
     } finally {
@@ -261,7 +262,7 @@ export function useProject() {
       setProject(loadedProject);
       return loadedProject;
     } catch (e) {
-      const errorMsg = e?.toString() || "Failed to load project";
+      const errorMsg = errorMessage(e, "Failed to load project");
       setError(errorMsg);
       throw new Error(errorMsg);
     } finally {
@@ -316,7 +317,7 @@ export function useExport() {
       const outputPath = await invoke<string>("export_project", { project, settings });
       return outputPath;
     } catch (e) {
-      const errorMsg = e?.toString() || "Export failed";
+      const errorMsg = errorMessage(e, "Export failed");
       setError(errorMsg);
       setExporting(false);
       throw new Error(errorMsg);
