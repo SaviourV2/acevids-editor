@@ -21,6 +21,13 @@ own release history and keep its name. The format follows
   updates" setting. ACEVIDS no longer contacts a release server or replaces
   itself. Automatic yt-dlp updates are unchanged.
 
+### Security
+
+- Updated the Rust dependencies flagged by `cargo audit`: `zip` 2 to 9 (unsafe
+  symlink and permission handling during extraction), `rusqlite` 0.31 to 0.43
+  (bundled SQLite), and patched releases of `rustls`, `rustls-webpki` and the
+  `zstd` crates.
+
 ## [2.0.2] - 2026-10-08
 
 ### Fixed

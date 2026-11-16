@@ -415,7 +415,14 @@ pub(crate) fn extract_zip(
         if !entry.is_file() || entry.is_symlink() {
             continue;
         }
-        let Some(name) = select(entry.name()) else {
+        // zip >= 9 decodes the name lazily; an undecodable name fails the
+        // extraction, like a bad tar entry path below.
+        let selected = select(
+            &entry
+                .name()
+                .map_err(|e| AcevidsError::Other(format!("Bad zip entry name: {}", e)))?,
+        );
+        let Some(name) = selected else {
             continue;
         };
         written.push(write_entry(&mut entry, dest_dir, &name)?);
