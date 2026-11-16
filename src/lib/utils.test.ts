@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   cn,
+  errorMessage,
   formatBytes,
   formatDuration,
   formatDurationVerbose,
@@ -33,6 +34,26 @@ describe("cn", () => {
   it("handles conditional/falsy values", () => {
     const cond = false as boolean;
     expect(cn("a", cond && "b", null, undefined, "c")).toBe("a c");
+  });
+});
+
+describe("errorMessage", () => {
+  it("reads strings, Errors and backend error objects", () => {
+    expect(errorMessage("offline", "fallback")).toBe("offline");
+    expect(errorMessage(new Error("boom"), "fallback")).toBe("boom");
+    expect(errorMessage({ code: "FFMPEG_ERROR", message: "no encoder" }, "fallback")).toBe(
+      "no encoder"
+    );
+  });
+
+  it("falls back when the value carries no text", () => {
+    expect(errorMessage("", "fallback")).toBe("fallback");
+    expect(errorMessage(null, "fallback")).toBe("fallback");
+    expect(errorMessage(undefined, "fallback")).toBe("fallback");
+    expect(errorMessage(42, "fallback")).toBe("fallback");
+    expect(errorMessage({ code: "X" }, "fallback")).toBe("fallback");
+    expect(errorMessage({ message: "" }, "fallback")).toBe("fallback");
+    expect(errorMessage({ message: 7 }, "fallback")).toBe("fallback");
   });
 });
 

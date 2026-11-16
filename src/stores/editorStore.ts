@@ -14,6 +14,7 @@ import {
   type Clip,
   type HistoryEntry,
   type ExportSettings,
+  type ProjectSettings,
 } from "@/types/editor";
 import { generateId } from "@/lib/utils";
 
@@ -54,6 +55,8 @@ export interface EditorState {
   saveProject: () => EditorProject | null;
   closeProject: () => void;
   setProjectName: (name: string) => void;
+  /** Resize the project canvas and frame rate (e.g. to match the first video). */
+  setCanvas: (canvas: Pick<ProjectSettings, "width" | "height" | "fps">) => void;
 
   // Track actions
   addTrack: (type: Track["type"]) => string;
@@ -279,6 +282,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setProjectName: (name) => {
     set((state) => ({
       project: state.project ? { ...state.project, name } : null,
+      isDirty: true,
+    }));
+  },
+
+  setCanvas: ({ width, height, fps }) => {
+    set((state) => ({
+      project: state.project
+        ? { ...state.project, settings: { ...state.project.settings, width, height, fps } }
+        : null,
       isDirty: true,
     }));
   },

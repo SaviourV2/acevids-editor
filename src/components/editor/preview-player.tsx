@@ -10,7 +10,7 @@ import {
 import { PreviewOverlay } from "@/components/editor/preview-overlay";
 import { useEditorStore } from "@/stores/editorStore";
 import type { Clip } from "@/types/editor";
-import { mediaSrc } from "@/lib/utils";
+import { cn, mediaSrc } from "@/lib/utils";
 import { logger } from "@/lib/logger";
 import { findActiveClip, getSourceTimeForClip } from "@/lib/editor/timeline";
 import {
@@ -107,11 +107,19 @@ export function PreviewPlayer() {
       }
     : undefined;
 
+  // The frame takes the project's shape: wide projects fill the width, tall
+  // ones the height, so a vertical video is not shown inside a 16:9 box.
+  const portrait = canvas ? canvas.height > canvas.width : false;
+  const aspectRatio = canvas ? `${canvas.width} / ${canvas.height}` : "16 / 9";
+
   return (
-    <div className="flex flex-1 items-center justify-center bg-black p-4">
+    <div className="flex min-h-0 flex-1 items-center justify-center bg-black p-4">
       <div
-        className="relative aspect-video w-full max-w-4xl overflow-hidden rounded bg-neutral-900"
-        style={{ containerType: "size" }}
+        className={cn(
+          "relative overflow-hidden rounded bg-neutral-900",
+          portrait ? "h-full max-w-full" : "w-full max-w-4xl"
+        )}
+        style={{ containerType: "size", aspectRatio }}
         data-testid="preview"
       >
         {visualClip && sharpen !== null && (

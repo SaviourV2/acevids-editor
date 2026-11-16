@@ -109,13 +109,15 @@ describe("useEditorActions guards", () => {
   });
 
   it("requires a project for add, paste and save", async () => {
-    mockBackend();
+    mockBackend({
+      get_video_metadata: () => ({ duration: 2, width: 640, height: 360, fps: 25 }),
+    });
     const { result } = renderHook(() => useEditorActions());
     act(() => result.current.copyClip("v"));
     loadEditor(null);
     act(() => result.current.pasteClip());
     expect(result.current.addText()).toBeNull();
-    act(() =>
+    await act(() =>
       result.current.addLibraryVideo({
         id: "x",
         title: "X",
@@ -128,9 +130,14 @@ describe("useEditorActions guards", () => {
     expect(toast.error).toHaveBeenCalledWith("Nothing to save yet");
   });
 
-  it("library videos without a duration fall back to 60s", () => {
+  it("library videos whose length cannot be read fall back to 60s", async () => {
+    mockBackend({
+      get_video_metadata: () => {
+        throw "ffprobe failed";
+      },
+    });
     const { result } = renderHook(() => useEditorActions());
-    act(() =>
+    await act(() =>
       result.current.addLibraryVideo({
         id: "x",
         title: "X",
@@ -139,6 +146,83 @@ describe("useEditorActions guards", () => {
       } as never)
     );
     expect(allClips().find((c) => c.name === "X")).toMatchObject({ startTime: 10, endTime: 70 });
+  });
+
+  it("library videos take their real length from the file", async () => {
+    const backend = mockBackend({
+      get_video_metadata: () => ({ duration: 4, width: 1512, height: 2688, fps: 59.94 }),
+    });
+    const { result } = renderHook(() => useEditorActions());
+    const video = { id: "x", title: "Drone", filePath: "/drone.mp4", duration: 0 } as never;
+    await act(() => result.current.addLibraryVideo(video));
+    expect(backend.callsTo("get_video_metadata").map((c) => c.args.path)).toEqual(["/drone.mp4"]);
+    expect(allClips().find((c) => c.name === "Drone")).toMatchObject({
+      startTime: 10,
+      endTime: 14,
+    });
+    // The timeline already has a picture, so the canvas is left alone.
+    expect(currentProject().settings).toMatchObject({ width: 1920, height: 1080, fps: 30 });
+
+    // A file that reports no length keeps the library's own value.
+    backend.on("get_video_metadata", () => ({ duration: 0, width: 0, height: 0, fps: 0 }));
+    const known = { id: "y", title: "Known", filePath: "/k.mp4", duration: 7 } as never;
+    await act(() => result.current.addLibraryVideo(known));
+    expect(allClips().find((c) => c.name === "Known")).toMatchObject({
+      startTime: 14,
+      endTime: 21,
+    });
+  });
+
+  it("the first video on an empty timeline sets the project canvas", async () => {
+    loadEditor(makeProject([makeTrack({ id: "tv" }), makeTrack({ id: "ta", type: "audio" })]));
+    const backend = mockBackend({
+      "plugin:dialog|open": () => ["/in/song.mp3", "/in/phone.mp4", "/in/wide.mp4"],
+      get_video_metadata: (args) => {
+        const path = String(args.path);
+        if (path.endsWith(".mp3")) return { duration: 3, width: 0, height: 0, fps: 0 };
+        return path.includes("phone")
+          ? { duration: 6, width: 1081, height: 1920, fps: 60 }
+          : { duration: 5, width: 3840, height: 2160, fps: 24 };
+      },
+    });
+    const { result } = renderHook(() => useEditorActions());
+    await act(() => result.current.importFiles());
+    // The vertical phone clip came first, so the project is vertical at 60 fps.
+    expect(currentProject().settings).toMatchObject({ width: 1080, height: 1920, fps: 60 });
+    expect(useEditorStore.getState().isDirty).toBe(true);
+
+    // Later videos do not reshape a project that already has a picture.
+    backend.on("plugin:dialog|open", () => "/in/wide.mp4");
+    await act(() => result.current.importFiles());
+    expect(currentProject().settings).toMatchObject({ width: 1080, height: 1920, fps: 60 });
+
+    // A still already on the timeline counts as a picture too.
+    loadEditor(
+      makeProject([
+        makeTrack({
+          id: "tv",
+          clips: [makeClip({ id: "logo", type: "image", startTime: 0, endTime: 5 })],
+        }),
+      ])
+    );
+    backend.on("plugin:dialog|open", () => "/in/phone.mp4");
+    await act(() => result.current.importFiles());
+    expect(currentProject().settings).toMatchObject({ width: 1920, height: 1080, fps: 30 });
+  });
+
+  it("undoing the first import restores the canvas it replaced", async () => {
+    loadEditor(makeProject([makeTrack({ id: "tv" })]));
+    mockBackend({
+      "plugin:dialog|open": () => "/in/phone.mp4",
+      get_video_metadata: () => ({ duration: 6, width: 1080, height: 1920, fps: 60 }),
+    });
+    const { result } = renderHook(() => useEditorActions());
+    await act(() => result.current.importFiles());
+    expect(currentProject().settings).toMatchObject({ width: 1080, height: 1920, fps: 60 });
+
+    act(() => useEditorStore.getState().undo());
+    expect(allClips()).toHaveLength(0);
+    expect(currentProject().settings).toMatchObject({ width: 1920, height: 1080, fps: 30 });
   });
 
   it("import exits quietly when the dialog is cancelled", async () => {
@@ -209,6 +293,19 @@ describe("useExportFlow", () => {
       await pending;
     });
     expect(toast.error).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the reason carried by a backend error object", async () => {
+    mockBackend({
+      export_project: () => {
+        throw { code: "FFMPEG_ERROR", message: "FFmpeg error: Cannot load libcuda.so.1" };
+      },
+    });
+    const { result } = renderHook(() => useExportFlow());
+    await act(() => result.current.startExport(settings));
+    expect(toast.error).toHaveBeenCalledWith(
+      "Export failed: FFmpeg error: Cannot load libcuda.so.1"
+    );
   });
 
   it("reports a failed cancel", async () => {

@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { MEDIA_DIALOG_FILTERS, classifyMediaExtension, fileNameFromPath } from "./media";
+import {
+  MAX_PROJECT_FPS,
+  MEDIA_DIALOG_FILTERS,
+  canvasForVideo,
+  classifyMediaExtension,
+  fileNameFromPath,
+} from "./media";
 
 describe("classifyMediaExtension", () => {
   it.each([
@@ -26,6 +32,33 @@ describe("fileNameFromPath", () => {
     expect(fileNameFromPath("C:\\a\\b.mp4")).toBe("b.mp4");
     expect(fileNameFromPath("/a/b.mp4")).toBe("b.mp4");
     expect(fileNameFromPath("")).toBe("Media");
+  });
+});
+
+describe("canvasForVideo", () => {
+  it("takes the video's shape with even dimensions and a whole frame rate", () => {
+    expect(canvasForVideo({ width: 1512, height: 2688, fps: 59.94 }, 30)).toEqual({
+      width: 1512,
+      height: 2688,
+      fps: 60,
+    });
+    expect(canvasForVideo({ width: 1081, height: 607, fps: 23.976 }, 30)).toEqual({
+      width: 1080,
+      height: 606,
+      fps: 24,
+    });
+  });
+
+  it("keeps the fallback rate when the file reports none and caps extreme ones", () => {
+    expect(canvasForVideo({ width: 640, height: 360, fps: 0 }, 30)?.fps).toBe(30);
+    expect(canvasForVideo({ width: 640, height: 360, fps: NaN }, 25)?.fps).toBe(25);
+    expect(canvasForVideo({ width: 640, height: 360, fps: 960 }, 30)?.fps).toBe(MAX_PROJECT_FPS);
+  });
+
+  it("is null when the picture size is unknown", () => {
+    expect(canvasForVideo({ width: 0, height: 0, fps: 30 }, 30)).toBeNull();
+    expect(canvasForVideo({ width: 1920, height: NaN, fps: 30 }, 30)).toBeNull();
+    expect(canvasForVideo({ width: 1, height: 1080, fps: 30 }, 30)).toBeNull();
   });
 });
 

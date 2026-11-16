@@ -17,6 +17,25 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Text of a thrown value, for showing to people.
+ *
+ * Backend commands reject with a `{ code, message }` object rather than an
+ * `Error`, so `String(e)` would read "[object Object]".
+ *
+ * @param error - Whatever was thrown or rejected.
+ * @param fallback - Used when the value carries no usable text.
+ * @returns The message.
+ */
+export function errorMessage(error: unknown, fallback: string): string {
+  if (typeof error === "string") return error || fallback;
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const { message } = error;
+    if (typeof message === "string" && message) return message;
+  }
+  return fallback;
+}
+
+/**
  * Format a byte count for display, e.g. `1.5 MB`.
  *
  * @param bytes - Size in bytes.
